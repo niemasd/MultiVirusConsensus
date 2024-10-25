@@ -36,10 +36,10 @@ def print_log(s='', end='\n'):
 def parse_args():
     # parse args
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-i', '--input_reads', required=True, type=str, nargs='+', help="Input Reads (FASTQ)")
+    parser.add_argument('-i', '--reads', required=True, type=str, nargs='+', help="Input Reads (FASTQ)")
     parser.add_argument('-r', '--reference', required=True, type=str, nargs='+', help="Reference Genome (FASTA)")
     parser.add_argument('-o', '--output', required=True, type=str, help="Output Folder")
-    parser.add_argument('-q', '--quiet', action='store_true', help="Suppress Log Output")
+    parser.add_argument('--quiet', action='store_true', help="Suppress Log Output")
     parser.add_argument('--threads', required=False, type=int, default=DEFAULT_NUM_THREADS, help="Number of Threads for Minimap2/Samtools")
     parser.add_argument('--include_multimapped', action='store_true', help="Include Multimapped Reads in Consensus")
     parser.add_argument('--minimap2_path', required=False, type=str, default='minimap2', help="Minimap2 Path")
@@ -50,7 +50,7 @@ def parse_args():
     args = parser.parse_args()
 
     # check args for validity and return
-    for fn in args.input_reads + args.reference:
+    for fn in args.reads + args.reference:
         if not isfile(fn):
             raise ValueError("File not found: %s" % fn)
     if isdir(args.output) or isfile(args.output):
@@ -122,7 +122,7 @@ def write_script(reads_fns, refs_fn, refs, script_fn, include_multimapped=False,
     for ref_ID, ref_seq in refs.items():
         ref_fn = '%s/reference.%s.fas' % (out_path, ref_ID)
         ref_f = open(ref_fn, 'w'); ref_f.write('>%s\n%s\n' % (ref_ID, ref_seq)); ref_f.close()
-        f.write(" >(grep -E '^@.+%s\t|\t%s\t' | '%s' -i - -r '%s' -o '%s/%s.consensus.fas' -op '%s/%s.poscounts.tsv' -oi '%s/%s.inscounts.json')" % (ref_ID, ref_ID, viral_consensus_path, ref_fn, out_path, ref_ID, out_path, ref_ID, out_path, ref_ID))
+        f.write(" >(grep -E '^@.+%s\t|\t%s\t' | '%s' -i - -r '%s' -o '%s/%s.consensus.fas' -op '%s/%s.poscounts.tsv' -oi '%s/%s.inscounts.json' %s)" % (ref_ID, ref_ID, viral_consensus_path, ref_fn, out_path, ref_ID, out_path, ref_ID, out_path, ref_ID, viral_consensus_args))
     f.write(" > /dev/null\n")
     f.close()
 
@@ -135,7 +135,7 @@ def main():
     global LOGFILE; LOGFILE = open("%s/MultiVirusConsensus.log" % args.output, 'w')
     print_log("=== MultiVirusConsensus (MVC) v%s ===" % VERSION)
     print_log("Command: %s" % ' '.join(sys.argv))
-    print_log("Input Reads: %s" % '\t'.join(args.input_reads))
+    print_log("Input Reads: %s" % '\t'.join(args.reads))
     print_log("Reference FASTA: %s" % '\t'.join(args.reference))
     print_log("Output Directory: %s" % args.output)
     print_log("Include multimapped reads in consensus? %s" % args.include_multimapped)
@@ -143,6 +143,8 @@ def main():
     print_log("Minimap2 Path: %s" % args.minimap2_path)
     print_log("Minimap2 Arguments: %s" % args.minimap2_args)
     print_log("Samtools Path: %s" % args.samtools_path)
+    print_log("ViralConsensus Path: %s" % args.viral_consensus_path)
+    print_log("ViralConsensus Arguments: %s" % args.viral_consensus_args)
 
     # merge references into single FASTA
     refs = load_references(args.reference)
@@ -154,7 +156,7 @@ def main():
     out_script_path = '%s/run.sh' % args.output
     print_log("Writing bash script: %s" % out_script_path)
     write_script(
-        args.input_reads, out_refs_path, refs, out_script_path,
+        args.reads, out_refs_path, refs, out_script_path,
         include_multimapped=args.include_multimapped, threads=args.threads,
         minimap2_path=args.minimap2_path, minimap2_args=args.minimap2_args,
         samtools_path=args.samtools_path,
