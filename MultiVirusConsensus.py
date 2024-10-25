@@ -122,7 +122,7 @@ def write_script(reads_fns, refs_fn, refs, script_fn, include_multimapped=False,
     for ref_ID, ref_seq in refs.items():
         ref_fn = '%s/reference.%s.fas' % (out_path, ref_ID)
         ref_f = open(ref_fn, 'w'); ref_f.write('>%s\n%s\n' % (ref_ID, ref_seq)); ref_f.close()
-        f.write(" >(grep -E '^@.+%s\t|\t%s\t' | '%s' -i - -r '%s' -o '%s/%s.consensus.fas')" % (ref_ID, ref_ID, viral_consensus_path, ref_fn, out_path, ref_ID))
+        f.write(" >(grep -E '^@.+%s\t|\t%s\t' | '%s' -i - -r '%s' -o '%s/%s.consensus.fas' -op '%s/%s.poscounts.tsv' -oi '%s/%s.inscounts.json')" % (ref_ID, ref_ID, viral_consensus_path, ref_fn, out_path, ref_ID, out_path, ref_ID, out_path, ref_ID))
     f.write(" > /dev/null\n")
     f.close()
 
