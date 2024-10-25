@@ -115,7 +115,7 @@ def write_script(reads_fns, refs_fn, refs, script_fn, minimap2_path='minimap2', 
     for ref_ID, ref_seq in refs.items():
         ref_fn = '%s/reference.%s.fas' % (out_path, ref_ID)
         ref_f = open(ref_fn, 'w'); ref_f.write('>%s\n%s\n' % (ref_ID, ref_seq)); ref_f.close()
-        #f.write(" | tee >('%s' view | grep '\t%s\t' | '%s' -i - -r '%s' -o '%s.consensus.fas')" % (samtools_path, ref_ID, viral_consensus_path, ref_fn, ref_ID))
+        f.write(" | tee >(grep -P '\\t%s\\t' | '%s' -i - -r '%s' -o '%s.consensus.fas')" % (ref_ID, viral_consensus_path, ref_fn, ref_ID))
     f.write(" > /dev/null\n")
     f.close()
 
