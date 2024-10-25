@@ -60,6 +60,8 @@ For example, to change the minimum depth setting to 1 (`-d 1`), you could run th
 ./MultiVirusConsensus.py --viral_consensus_args '-d 1' -i example/reads.illumina.30X.fq.gz -r example/NC_001802.fas example/NC_045512.fas example/NC_063383.fas -o output
 ```
 
+In general, please only include arguments related to consensus sequence calling: **do not include arguments related to input/output files!**
+
 # Citing MultiVirusConsensus (MVC)
 
 TODO
