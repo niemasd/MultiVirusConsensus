@@ -5,6 +5,7 @@ MultiVirusConsensus (MVC): Fast consensus genome reconstruction of multiple viru
 
 # standard imports
 from datetime import datetime
+from multiprocessing import cpu_count
 from os import makedirs
 from os.path import isdir, isfile
 from subprocess import run
@@ -15,6 +16,7 @@ import sys
 VERSION = '0.0.1'
 global QUIET; QUIET = False
 global LOGFILE; LOGFILE = None
+DEFAULT_NUM_THREADS = cpu_count()
 DEFAULT_MINIMAP2_ARGS = '-x sr'
 DEFAULT_VIRALCONSENSUS_ARGS = ''
 
@@ -38,6 +40,7 @@ def parse_args():
     parser.add_argument('-r', '--reference', required=True, type=str, nargs='+', help="Reference Genome (FASTA)")
     parser.add_argument('-o', '--output', required=True, type=str, help="Output Folder")
     parser.add_argument('-q', '--quiet', action='store_true', help="Suppress Log Output")
+    parser.add_argument('--threads', required=False, type=int, default=DEFAULT_NUM_THREADS, help="Number of Threads for Minimap2/Samtools")
     parser.add_argument('--include_multimapped', action='store_true', help="Include Multimapped Reads in Consensus")
     parser.add_argument('--minimap2_path', required=False, type=str, default='minimap2', help="Minimap2 Path")
     parser.add_argument('--minimap2_args', required=False, type=str, default=DEFAULT_MINIMAP2_ARGS, help="Minimap2 Arguments")
@@ -52,6 +55,8 @@ def parse_args():
             raise ValueError("File not found: %s" % fn)
     if isdir(args.output) or isfile(args.output):
         raise ValueError("Output exists: %s" % args.output)
+    if args.threads < 1:
+        raise ValueError("Number of threads must be positive: %d" % args.threads)
     return args
 
 # load FASTA file
@@ -103,19 +108,21 @@ def write_references(refs, fn):
     f.close()
 
 # write bash script to run analysis
-def write_script(reads_fns, refs_fn, refs, script_fn, minimap2_path='minimap2', minimap2_args=DEFAULT_MINIMAP2_ARGS, samtools_path='samtools', viral_consensus_path='viral_consensus', viral_consensus_args=DEFAULT_VIRALCONSENSUS_ARGS):
+def write_script(reads_fns, refs_fn, refs, script_fn, include_multimapped=False, threads=DEFAULT_NUM_THREADS, minimap2_path='minimap2', minimap2_args=DEFAULT_MINIMAP2_ARGS, samtools_path='samtools', viral_consensus_path='viral_consensus', viral_consensus_args=DEFAULT_VIRALCONSENSUS_ARGS):
     out_path = '/'.join(script_fn.split('/')[:-1])
     f = open(script_fn, 'w')
     f.write("#!/usr/bin/env bash\n")
     f.write("# MultiVirusConsensus (MVC) v%s\n" % VERSION)
     f.write("# MVC Command: %s\n" % ' '.join(sys.argv))
-    f.write("'%s' -a %s '%s' '%s'" % (minimap2_path, minimap2_args, refs_fn, ' '.join(reads_fns)))
+    f.write("'%s' -a -t %d %s '%s' '%s'" % (minimap2_path, threads, minimap2_args, refs_fn, ' '.join(reads_fns)))
     f.write(" 2> '%s/minimap2.log'" % out_path)
-    f.write(" | tee >('%s' view -o '%s/reads.bam')" % (samtools_path, out_path))
+    f.write(" | tee >('%s' view -@ %d -o '%s/reads.bam')" % (samtools_path, threads, out_path))
+    if not include_multimapped:
+        f.write(" | samtools view -h -F 4 -q 1 | tee")
     for ref_ID, ref_seq in refs.items():
         ref_fn = '%s/reference.%s.fas' % (out_path, ref_ID)
         ref_f = open(ref_fn, 'w'); ref_f.write('>%s\n%s\n' % (ref_ID, ref_seq)); ref_f.close()
-        f.write(" | tee >(grep -P '\\t%s\\t' | '%s' -i - -r '%s' -o '%s.consensus.fas')" % (ref_ID, viral_consensus_path, ref_fn, ref_ID))
+        f.write(" >(grep -E '^@.+%s\t|\t%s\t' | '%s' -i - -r '%s' -o '%s/%s.consensus.fas')" % (ref_ID, ref_ID, viral_consensus_path, ref_fn, out_path, ref_ID))
     f.write(" > /dev/null\n")
     f.close()
 
@@ -132,6 +139,7 @@ def main():
     print_log("Reference FASTA: %s" % '\t'.join(args.reference))
     print_log("Output Directory: %s" % args.output)
     print_log("Include multimapped reads in consensus? %s" % args.include_multimapped)
+    print_log("Number of Threads: %s" % args.threads)
     print_log("Minimap2 Path: %s" % args.minimap2_path)
     print_log("Minimap2 Arguments: %s" % args.minimap2_args)
     print_log("Samtools Path: %s" % args.samtools_path)
@@ -147,6 +155,7 @@ def main():
     print_log("Writing bash script: %s" % out_script_path)
     write_script(
         args.input_reads, out_refs_path, refs, out_script_path,
+        include_multimapped=args.include_multimapped, threads=args.threads,
         minimap2_path=args.minimap2_path, minimap2_args=args.minimap2_args,
         samtools_path=args.samtools_path,
         viral_consensus_path=args.viral_consensus_path, viral_consensus_args=args.viral_consensus_args,
