@@ -41,7 +41,7 @@ def parse_args():
     parser.add_argument('-o', '--output', required=True, type=str, help="Output Folder")
     parser.add_argument('-bf', '--biobloom_filter', required=False, type=str, default=None, help="BioBloom Filter (for optional host filtering)")
     parser.add_argument('--quiet', action='store_true', help="Suppress Log Output")
-    parser.add_argument('--threads', required=False, type=int, default=DEFAULT_NUM_THREADS, help="Number of Threads for Minimap2/Samtools")
+    parser.add_argument('--threads', required=False, type=int, default=DEFAULT_NUM_THREADS, help="Number of Threads for Minimap2/Samtools/BioBloom")
     parser.add_argument('--include_multimapped', action='store_true', help="Include Multimapped Reads in Consensus")
     parser.add_argument('--skip_run', action='store_true', help="Skip Running the Analysis Script")
     parser.add_argument('--biobloomcategorizer_path', required=False, type=str, default='biobloomcategorizer', help="BioBloom Categorizer Path")
