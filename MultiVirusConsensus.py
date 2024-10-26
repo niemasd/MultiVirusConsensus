@@ -39,9 +39,11 @@ def parse_args():
     parser.add_argument('-i', '--reads', required=True, type=str, nargs='+', help="Input Reads (FASTQ)")
     parser.add_argument('-r', '--reference', required=True, type=str, nargs='+', help="Reference Genome (FASTA)")
     parser.add_argument('-o', '--output', required=True, type=str, help="Output Folder")
+    parser.add_argument('-bf', '--biobloom_filter', required=False, type=str, default=None, help="BioBloom Filter (for optional host filtering)")
     parser.add_argument('--quiet', action='store_true', help="Suppress Log Output")
     parser.add_argument('--threads', required=False, type=int, default=DEFAULT_NUM_THREADS, help="Number of Threads for Minimap2/Samtools")
     parser.add_argument('--include_multimapped', action='store_true', help="Include Multimapped Reads in Consensus")
+    parser.add_argument('--biobloomcategorizer_path', required=False, type=str, default='biobloomcategorizer', help="BioBloom Categorizer Path")
     parser.add_argument('--minimap2_path', required=False, type=str, default='minimap2', help="Minimap2 Path")
     parser.add_argument('--minimap2_args', required=False, type=str, default=DEFAULT_MINIMAP2_ARGS, help="Minimap2 Arguments")
     parser.add_argument('--samtools_path', required=False, type=str, default='samtools', help="Samtools Path")
@@ -50,7 +52,12 @@ def parse_args():
     args = parser.parse_args()
 
     # check args for validity and return
-    for fn in args.reads + args.reference:
+    check_files = args.reads + args.reference
+    if args.biobloom_filter is not None:
+        if not args.biobloom_filter.lower().endswith('.bf'):
+            raise ValueError("BioBloom Filter should have .bf extension: %s" % args.biobloom_filter)
+        check_files.append(args.biobloom_filter)
+    for fn in check_files:
         if not isfile(fn):
             raise ValueError("File not found: %s" % fn)
     if isdir(args.output) or isfile(args.output):
@@ -108,12 +115,19 @@ def write_references(refs, fn):
     f.close()
 
 # write bash script to run analysis
-def write_script(reads_fns, refs_fn, refs, script_fn, include_multimapped=False, threads=DEFAULT_NUM_THREADS, minimap2_path='minimap2', minimap2_args=DEFAULT_MINIMAP2_ARGS, samtools_path='samtools', viral_consensus_path='viral_consensus', viral_consensus_args=DEFAULT_VIRALCONSENSUS_ARGS):
+def write_script(
+        reads_fns, refs_fn, refs, script_fn, include_multimapped=False, threads=DEFAULT_NUM_THREADS,
+        biobloom_filter=None, biobloomcategorizer_path='biobloomcategorizer',
+        minimap2_path='minimap2', minimap2_args=DEFAULT_MINIMAP2_ARGS,
+        samtools_path='samtools',
+        viral_consensus_path='viral_consensus', viral_consensus_args=DEFAULT_VIRALCONSENSUS_ARGS):
     out_path = '/'.join(script_fn.split('/')[:-1])
     f = open(script_fn, 'w')
     f.write("#!/usr/bin/env bash\n")
     f.write("# MultiVirusConsensus (MVC) v%s\n" % VERSION)
     f.write("# MVC Command: %s\n" % ' '.join(sys.argv))
+    if biobloom_filter is not None:
+        pass # TODO ADD BIOBLOOM STEP
     f.write("'%s' -a -t %d %s '%s' '%s'" % (minimap2_path, threads, minimap2_args, refs_fn, ' '.join(reads_fns)))
     f.write(" 2> '%s/minimap2.log'" % out_path)
     f.write(" | tee >('%s' view -@ %d -o '%s/reads.bam')" % (samtools_path, threads, out_path))
@@ -135,11 +149,13 @@ def main():
     global LOGFILE; LOGFILE = open("%s/MultiVirusConsensus.log" % args.output, 'w')
     print_log("=== MultiVirusConsensus (MVC) v%s ===" % VERSION)
     print_log("Command: %s" % ' '.join(sys.argv))
-    print_log("Input Reads: %s" % '\t'.join(args.reads))
-    print_log("Reference FASTA: %s" % '\t'.join(args.reference))
+    print_log("Input Viral Reads: %s" % '\t'.join(args.reads))
+    print_log("Viral Reference FASTA: %s" % '\t'.join(args.reference))
+    print_log("BioBloom Filter: %s" % args.biobloom_filter)
     print_log("Output Directory: %s" % args.output)
     print_log("Include multimapped reads in consensus? %s" % args.include_multimapped)
     print_log("Number of Threads: %s" % args.threads)
+    print_log("BioBloom Categorizer Path: %s" % args.biobloomcategorizer_path)
     print_log("Minimap2 Path: %s" % args.minimap2_path)
     print_log("Minimap2 Arguments: %s" % args.minimap2_args)
     print_log("Samtools Path: %s" % args.samtools_path)
@@ -158,6 +174,7 @@ def main():
     write_script(
         args.reads, out_refs_path, refs, out_script_path,
         include_multimapped=args.include_multimapped, threads=args.threads,
+        biobloom_filter=args.biobloom_filter, biobloomcategorizer_path=args.biobloomcategorizer_path,
         minimap2_path=args.minimap2_path, minimap2_args=args.minimap2_args,
         samtools_path=args.samtools_path,
         viral_consensus_path=args.viral_consensus_path, viral_consensus_args=args.viral_consensus_args,
