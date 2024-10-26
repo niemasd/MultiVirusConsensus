@@ -36,8 +36,8 @@ def print_log(s='', end='\n'):
 def parse_args():
     # parse args
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-i', '--reads', required=True, type=str, nargs='+', help="Input Reads (FASTQ)")
-    parser.add_argument('-r', '--reference', required=True, type=str, nargs='+', help="Reference Genome (FASTA)")
+    parser.add_argument('-i', '--reads', required=True, type=str, nargs='+', help="Input Viral Reads (FASTQ)")
+    parser.add_argument('-r', '--reference', required=True, type=str, nargs='+', help="Reference Viral Genome(s) (FASTA)")
     parser.add_argument('-o', '--output', required=True, type=str, help="Output Folder")
     parser.add_argument('-bf', '--biobloom_filter', required=False, type=str, default=None, help="BioBloom Filter (for optional host filtering)")
     parser.add_argument('--quiet', action='store_true', help="Suppress Log Output")
