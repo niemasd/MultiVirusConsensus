@@ -4,7 +4,7 @@ MAINTAINER Niema Moshiri <niemamoshiri@gmail.com>
 
 # install MultiVirusConsensus and dependencies
 RUN apk update && \
-    apk add --no-cache autoconf automake bash bzip2-dev curl-dev g++ make xz-dev zlib-dev && \
+    apk add --no-cache autoconf automake bash bzip2-dev curl-dev g++ make python3 xz-dev zlib-dev && \
 
     # install htslib
     wget -qO- "https://github.com/samtools/htslib/releases/download/1.21/htslib-1.21.tar.bz2" | tar -xj && \
