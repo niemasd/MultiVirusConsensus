@@ -134,7 +134,7 @@ def write_script(
     else:                       # host filtering (call BioBloom to filter, and feed Minimap2 the unfiltered reads)
         f.write("<('%s' -c -n -d -t %d -p '%s/biobloom' -f '%s' %s 2> '%s/biobloom.log')" % (biobloomcategorizer_path, threads, out_path, biobloom_filter, ' '.join("'%s'" % fn for fn in reads_fns), out_path))
     f.write(" 2> '%s/minimap2.log'" % out_path)
-    f.write(" | tee >('%s' view -@ %d -o '%s/mapped.bam')" % (samtools_path, threads, out_path))
+    f.write(" | tee >('%s' view -@ %d -o '%s/reads.bam')" % (samtools_path, threads, out_path))
     if not include_multimapped:
         f.write(" | samtools view -h -F 4 -q 1 | tee")
     for ref_ID, ref_seq in refs.items():
