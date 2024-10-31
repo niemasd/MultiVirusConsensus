@@ -13,7 +13,7 @@ import argparse
 import sys
 
 # useful constants
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 global QUIET; QUIET = False
 global LOGFILE; LOGFILE = None
 DEFAULT_NUM_THREADS = cpu_count()
