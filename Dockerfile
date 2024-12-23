@@ -19,7 +19,7 @@ RUN apt-get update && apt-get -y upgrade && \
     cd minimap2-* && make && chmod a+x minimap2 && mv minimap2 /usr/local/bin/minimap2 && cd .. && rm -rf minimap2-* && \
 
     # install ViralConsensus
-    wget -qO- "https://github.com/niemasd/ViralConsensus/archive/refs/tags/0.0.5.tar.gz" | tar -zx && \
+    wget -qO- "https://github.com/niemasd/ViralConsensus/archive/refs/tags/0.0.6.tar.gz" | tar -zx && \
     cd ViralConsensus-* && make && mv viral_consensus /usr/local/bin/viral_consensus && cd .. && rm -rf ViralConsensus-* && \
 
     # install Google Sparsehash (needed for BioBloom)
