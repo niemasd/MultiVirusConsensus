@@ -59,7 +59,7 @@ By default, MVC does not perform host filtering: it assumes that the reads are r
 biobloommaker -t 8 -p hg38 GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
 ```
 
-Note that BioBloom supports creating a single filter from a collection of host genome sequences (e.g. multiple different species, or multiple reference sequences from the same species. For more details about how to use BioBloom, as well as how to tweak filter size (and thus memory) vs. accuracy, please refer to the [BioBloom documentation](https://github.com/bcgsc/biobloom?tab=readme-ov-file#2).
+Note that BioBloom supports creating a single filter from a collection of host genome sequences (e.g. multiple different species, or multiple reference sequences from the same species). For more details about how to use BioBloom, as well as how to tweak filter size (and thus memory) vs. accuracy, please refer to the [BioBloom documentation](https://github.com/bcgsc/biobloom?tab=readme-ov-file#2).
 
 ## Optional Arguments
 
