@@ -19,7 +19,7 @@ We also provide a Docker image with all dependencies installed: [niemasd/multivi
 MVC can be used as follows:
 
 ```
-usage: MultiVirusConsensus.py [-h] -i READS [READS ...] -r REFERENCE [REFERENCE ...] -o OUTPUT
+usage: MultiVirusConsensus.py [-h] -i READS [READS ...] -r REFERENCE [REFERENCE ...] [-p [PRIMER ...]] -o OUTPUT
                               [--quiet] [--threads THREADS] [--include_multimapped]
                               [--minimap2_path MINIMAP2_PATH] [--minimap2_args MINIMAP2_ARGS]
                               [--samtools_path SAMTOOLS_PATH]
@@ -31,6 +31,7 @@ options:
   -h, --help                                                              show this help message and exit
   -i READS [READS ...], --reads READS [READS ...]                         Input Viral Reads (FASTQ)
   -r REFERENCE [REFERENCE ...], --reference REFERENCE [REFERENCE ...]     Reference Viral Genome(s) (FASTA)
+  -p [PRIMER ...], --primer [PRIMER ...]                                  Primers (BED)
   -o OUTPUT, --output OUTPUT                                              Output Folder
   -bf BIOBLOOM_FILTER, --biobloom_filter BIOBLOOM_FILTER                  BioBloom Filter (for optional host filtering)
   --quiet                                                                 Suppress Log Output
@@ -48,7 +49,7 @@ options:
 ## Example
 
 ```bash
-./MultiVirusConsensus.py -i example/reads.illumina.30X.fq.gz -r example/NC_001802.fas example/NC_045512.fas example/NC_063383.fas -o output
+./MultiVirusConsensus.py -o output -i example/reads.illumina.30X.fq.gz -r example/NC_001802.fas example/NC_045512.fas example/NC_063383.fas -p example/NC_045512.bed
 ```
 
 ## Host Filtering (optional)
