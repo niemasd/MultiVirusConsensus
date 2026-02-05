@@ -165,9 +165,9 @@ def load_references(ref_paths, primer_paths=list()):
 
 # write FASTA from dict where keys are sequence IDs and values are sequences
 def write_references(refs, path):
-    with open_file(path, 'wt') as f:
-        for k, v in refs.items():
-            f.write('>'); f.write(k); f.write('\n'); f.write(v); f.write('\n')
+    with open_file(path, 'wt') as refs_f:
+        for tup in refs.items():
+            refs_f.write('>%s\n%s\n' % tup)
 
 # write bash script to run analysis
 def write_script(
@@ -178,54 +178,54 @@ def write_script(
         samtools_path='samtools',
         viral_consensus_path='viral_consensus', viral_consensus_args=DEFAULT_VIRALCONSENSUS_ARGS):
     out_path = script_path.parent
-    with open_file(script_path, 'wt') as f:
+    with open_file(script_path, 'wt') as script_f:
         # write script header
-        f.write("#!/usr/bin/env bash\n")
-        f.write("# MultiVirusConsensus (MVC) v%s\n" % VERSION)
-        f.write("# MVC Command: %s\n" % ' '.join(argv))
+        script_f.write("#!/usr/bin/env bash\n")
+        script_f.write("# MultiVirusConsensus (MVC) v%s\n" % VERSION)
+        script_f.write("# MVC Command: %s\n" % ' '.join(argv))
 
         # write Minimap2 + BioBloom stuff
-        f.write("'%s' -a -t %d %s " % (minimap2_path, threads, minimap2_args))
+        script_f.write("'%s' -a -t %d %s " % (minimap2_path, threads, minimap2_args))
         if keep_multimapped == 'all':
-            f.write("--secondary=yes -N %d " % sum(1 for l in open_file(refs_path,'rt') if l.startswith('>')))
+            script_f.write("--secondary=yes -N %d " % sum(1 for l in open_file(refs_path,'rt') if l.startswith('>')))
         elif keep_multimapped == 'best':
-            f.write("--secondary=no ")
-        f.write(" '%s' " % refs_path)
+            script_f.write("--secondary=no ")
+        script_f.write(" '%s' " % refs_path)
         reads_paths_str = ' '.join("'%s'" % path for path in reads_paths)
         if biobloom_filter is None: # no host filtering (feed Minimap2 the raw reads)
-            f.write(reads_paths_str)
+            script_f.write(reads_paths_str)
         else:                       # host filtering (call BioBloom to filter, and feed Minimap2 the unfiltered reads)
             out_biobloom_path = out_path / 'biobloom'
             biobloom_log_path = out_path / 'biobloom.log'
-            f.write("<('%s' -c -n -d -t %d -p '%s' -f '%s' %s 2> '%s')" % (biobloomcategorizer_path, threads, out_biobloom_path, biobloom_filter, reads_paths_str, biobloom_log_path))
+            script_f.write("<('%s' -c -n -d -t %d -p '%s' -f '%s' %s 2> '%s')" % (biobloomcategorizer_path, threads, out_biobloom_path, biobloom_filter, reads_paths_str, biobloom_log_path))
         minimap2_log_path = out_path / 'minimap2.log'
-        f.write(" 2> '%s'" % minimap2_log_path)
+        script_f.write(" 2> '%s'" % minimap2_log_path)
 
         # write Samtools stuff
-        f.write(" | tee >('%s' view -@ %d -o '%s/reads.bam')" % (samtools_path, threads, out_path))
+        script_f.write(" | tee >('%s' view -@ %d -o '%s/reads.bam')" % (samtools_path, threads, out_path))
         if keep_multimapped == 'none':
-            f.write(" | '%s' view -h -F 4 -q 1 | tee" % samtools_path)
+            script_f.write(" | '%s' view -h -F 4 -q 1 | tee" % samtools_path)
 
         # write ViralConsensus stuff
         for ref_ID, ref_seq in refs.items():
             ref_path = out_path / ('reference.%s.fas' % ref_ID)
             with open_file(ref_path, 'wt') as ref_f:
                 ref_f.write('>%s\n%s\n' % (ref_ID, ref_seq))
-            f.write(" >(grep -E '^@.+%s\t|\t%s\t' | '%s' -i - -r '%s'" % (ref_ID, ref_ID, viral_consensus_path, ref_path))
+            script_f.write(" >(grep -E '^@.+%s\t|\t%s\t' | '%s' -i - -r '%s'" % (ref_ID, ref_ID, viral_consensus_path, ref_path))
             if ref_ID in primers:
                 bed_path = out_path / ('primers.%s.bed' % ref_ID)
                 with open_file(bed_path, 'wt') as bed_f:
                     bed_f.write(primers[ref_ID])
-                f.write(" -p '%s'" % bed_path)
+                script_f.write(" -p '%s'" % bed_path)
             consensus_path = out_path / ('%s.consensus.fas' % ref_ID)
             poscounts_path = out_path / ('%s.poscounts.tsv' % ref_ID)
             inscounts_path = out_path / ('%s.inscounts.json' % ref_ID)
             viralconsensus_log_path = out_path / ('viral_consensus.%s.log' % ref_ID)
-            f.write(" -o '%s' -op '%s' -oi '%s' %s > '%s' 2>&1)" % (consensus_path, poscounts_path, inscounts_path, viral_consensus_args, viralconsensus_log_path))
-        f.write(" > /dev/null\n")
+            script_f.write(" -o '%s' -op '%s' -oi '%s' %s > '%s' 2>&1)" % (consensus_path, poscounts_path, inscounts_path, viral_consensus_args, viralconsensus_log_path))
+        script_f.write(" > /dev/null\n")
 
         # make sure the bash script waits for all child processes to finish
-        f.write("wait\n")
+        script_f.write("wait\n")
 
 # main program execution
 def main():
