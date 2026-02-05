@@ -224,9 +224,6 @@ def write_script(
             script_f.write(" -o '%s' -op '%s' -oi '%s' %s > '%s' 2>&1)" % (consensus_path, poscounts_path, inscounts_path, viral_consensus_args, viralconsensus_log_path))
         script_f.write(" > /dev/null\n")
 
-        # make sure the bash script waits for all child processes to finish
-        script_f.write("wait\n")
-
 # main program execution
 def main():
     # set things up
