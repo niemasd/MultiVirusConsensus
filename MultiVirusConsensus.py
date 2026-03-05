@@ -12,7 +12,7 @@ from sys import argv, stderr, stdin, stdout
 import argparse
 
 # useful constants
-VERSION = '0.0.3'
+VERSION = '0.0.4'
 global QUIET; QUIET = False
 global LOGFILE; LOGFILE = None
 KEEP_MULTIMAPPED_OPTIONS = ['all', 'best', 'none']
@@ -89,15 +89,6 @@ def parse_args():
     for path in check_paths:
         if not path.is_file():
             raise ValueError("File not found: %s" % path)
-    reference_stems = {path.stem for path in args.reference}
-    for path in args.primer:
-        if path.stem not in reference_stems:
-            raise ValueError("Primer BED does not have corresponding reference FASTA: %s" % path)
-    for path in args.reference:
-        try:
-            reference_stems.remove(path.stem)
-        except KeyError:
-            raise ValueError("Duplicate reference genome FASTA filename stem: %s" % path.stem)
     if args.output.exists():
         raise ValueError("Output exists: %s" % args.output)
     if args.threads < 1:
