@@ -12,7 +12,7 @@ from sys import argv, stderr, stdin, stdout
 import argparse
 
 # useful constants
-VERSION = '0.0.4'
+VERSION = '0.0.5'
 global QUIET; QUIET = False
 global LOGFILE; LOGFILE = None
 KEEP_MULTIMAPPED_OPTIONS = ['all', 'best', 'none']
@@ -127,7 +127,7 @@ def load_bed(path):
     primers = dict()
     with open_file(path, 'rt') as infile:
         for line in infile:
-            name = line.split('\t')[0]
+            name = line.split('\t')[0].strip()
             if name not in primers:
                 primers[name] = ''
             primers[name] += line
@@ -135,23 +135,29 @@ def load_bed(path):
 
 # load reference genomes from FASTA
 def load_references(ref_paths, primer_paths=list()):
-    stem_to_primer_path = {primer_path.stem:primer_path for primer_path in primer_paths}
-    refs = dict(); primers = dict()
+    # set things up
+    refs = dict()
+    primers = dict()
+
+    # load reference FASTAs
     for ref_path in ref_paths:
         curr_refs = load_fasta(ref_path)
         for k, v in curr_refs.items():
             if k in refs:
                 raise ValueError("Duplicate reference ID in reference FASTAs: %s" % k)
             refs[k] = v
-        if ref_path.stem in stem_to_primer_path:
-            bed_path = stem_to_primer_path[ref_path.stem]
-            curr_primers = load_bed(bed_path)
-            for k, v in curr_primers.items():
-                if k not in curr_refs:
-                    raise ValueError("Reference ID (%s) found in primer BED (%s) but not in reference FASTA (%s)" % (k, bed_path, ref_path))
-                if k in primers:
-                    raise ValueError("Duplicate reference ID in primer BEDs: %s" % k)
-                primers[k] = v
+
+    # load primers
+    for bed_path in primer_paths:
+        curr_primers = load_bed(bed_path)
+        for k, v in curr_primers.items():
+            if k not in curr_refs:
+                raise ValueError("Reference ID (%s) found in primer BED (%s) but not in reference FASTA (%s)" % (k, bed_path, ref_path))
+            if k in primers:
+                raise ValueError("Duplicate reference ID in primer BEDs: %s" % k)
+            primers[k] = v
+
+    # return loaded references and primers
     return refs, primers
 
 # write FASTA from dict where keys are sequence IDs and values are sequences
