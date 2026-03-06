@@ -73,6 +73,12 @@
     }
 
     main{max-width:1400px; margin:0 auto; padding:16px;}
+    .folder-title{
+      margin: 4px 0 14px 0;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
     .plot{
       width:100%;
       background:var(--panel);
@@ -143,6 +149,7 @@
       <button id="toggleTheme">Light mode</button>
       <button id="downloadAll" disabled>Download All (ZIP)</button>
     </div>
+    <div id="folderHeader" class="folder-title"></div>
     <div id="status" class="status"></div>
   </div>
 </header>
@@ -156,6 +163,7 @@
 (() => {
   const elFolder = document.getElementById("folder");
   const elPlots = document.getElementById("plots");
+  const elFolderHeader = document.getElementById("folderHeader");
   const elStatus = document.getElementById("status");
   const elReload = document.getElementById("reload");
   const elDownloadAll = document.getElementById("downloadAll");
@@ -275,6 +283,15 @@
       if (w > max) max = w;
     }
     return max;
+  }
+
+  let selectedFolderName = null;
+
+  function folderNameFromFiles(fileList){
+    const first = (fileList && fileList.length) ? fileList[0] : null;
+    const rel = first?.webkitRelativePath || "";
+    // rel looks like "FolderName/subdir/file.ext"
+    return rel ? rel.split("/")[0] : null;
   }
 
   function makePlot({X, refLen, fracInfo, dense}){
@@ -661,6 +678,8 @@
   elFolder.addEventListener("change", async (e) => {
     const files = Array.from(e.target.files || []);
     lastFileList = files;
+    selectedFolderName = folderNameFromFiles(files) || null;
+    elFolderHeader.textContent = selectedFolderName;
     elReload.disabled = true;
     await buildFromFiles(files);
   });
