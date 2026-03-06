@@ -90,6 +90,10 @@ For example, to change the minimum depth setting to 1 (`-d 1`), you could run th
 
 In general, please only include arguments related to consensus sequence calling: **do not include arguments related to input/output files!**
 
+# Visualizing Results
+
+You can visualize the results of a MultiVirusConsensus run using our [visualization web application](https://niema.net/MultiVirusConsensus/).
+
 # Citing MultiVirusConsensus (MVC)
 
 If you use MVC in your work, please cite:
