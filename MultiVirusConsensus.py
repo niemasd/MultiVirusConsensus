@@ -12,7 +12,7 @@ from sys import argv, stderr, stdin, stdout
 import argparse
 
 # useful constants
-VERSION = '0.0.5'
+VERSION = '0.0.6'
 global QUIET; QUIET = False
 global LOGFILE; LOGFILE = None
 KEEP_MULTIMAPPED_OPTIONS = ['all', 'best', 'none']
@@ -59,7 +59,7 @@ def parse_args():
     parser.add_argument('-bf', '--biobloom_filter', required=False, type=str, default=None, help="BioBloom Filter (for optional host filtering)")
     parser.add_argument('--quiet', action='store_true', help="Suppress Log Output")
     parser.add_argument('--threads', required=False, type=int, default=DEFAULT_NUM_THREADS, help="Number of Threads for Minimap2/Samtools/BioBloom")
-    parser.add_argument('--keep_multimapped', required=False, type=str, default=DEFAULT_KEEP_MULTIMAPPED, help="What to Keep for Multimapped Reads")
+    parser.add_argument('--keep_multimapped', required=False, type=str, default=DEFAULT_KEEP_MULTIMAPPED, help="What to Keep for Multimapped Reads (options: %s)" % ', '.join(KEEP_MULTIMAPPED_OPTIONS))
     parser.add_argument('--skip_run', action='store_true', help="Skip Running the Analysis Script")
     parser.add_argument('--biobloomcategorizer_path', required=False, type=str, default='biobloomcategorizer', help="BioBloom Categorizer Path")
     parser.add_argument('--minimap2_path', required=False, type=str, default='minimap2', help="Minimap2 Path")
