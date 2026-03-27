@@ -98,4 +98,4 @@ You can visualize the results of a MultiVirusConsensus run using our [visualizat
 
 If you use MVC in your work, please cite:
 
-> Moshiri N (2024). "MultiVirusConsensus (MVC): Fast consensus genome reconstruction of multiple viruses from a mixed sample." [https://github.com/niemasd/MultiVirusConsensus](https://github.com/niemasd/MultiVirusConsensus)
+> Moshiri N (2026). "MultiVirusConsensus: An accurate and efficient open-source pipeline for identification and consensus sequence generation of multiple viruses from mixed samples." *medRxiv*. [doi:10.64898/2026.03.24.26349218](https://doi.org/10.64898/2026.03.24.26349218)
