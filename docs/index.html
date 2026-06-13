@@ -192,9 +192,9 @@
     const p = (path || "").split("/"); return p[p.length-1];
   }
 
-  // get the genome ID X from a filename reference.X.fas, X.poscounts.tsv, or X.consensus.fas
+  // get the genome ID X from a filename X.reference.fas, X.poscounts.tsv, or X.consensus.fas
   function genomeIdFromFilename(fname){
-    if (fname.startsWith("reference.") && fname.endsWith(".fas")) return fname.slice("reference.".length, -".fas".length);
+    if (fname.endsWith(".reference.fas")) return fname.slice(0, -".reference.fas".length);
     if (fname.endsWith(".poscounts.tsv")) return fname.slice(0, -".poscounts.tsv".length);
     if (fname.endsWith(".consensus.fas")) return fname.slice(0, -".consensus.fas".length);
     return null;
@@ -612,7 +612,7 @@
       if (X) genomeIDs.add(X);
     }
     if (genomeIDs.size === 0){
-      logStatus("No matching files found. Expected files like X.poscounts.tsv, X.consensus.fas, reference.X.fas");
+      logStatus("No matching files found. Expected files like X.poscounts.tsv, X.consensus.fas, X.reference.fas");
       return;
     }
 
@@ -620,7 +620,7 @@
     const genomes = [];
     const missing = [];
     for (const X of genomeIDs){
-      const refName = `reference.${X}.fas`;
+      const refName = `${X}.reference.fas`;
       const conName = `${X}.consensus.fas`;
       const tsvName = `${X}.poscounts.tsv`;
       const refFile = filesByName.get(refName);
