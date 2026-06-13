@@ -27,4 +27,4 @@ RUN apk update && \
     chmod a+x /usr/local/bin/MultiVirusConsensus.py && \
 
     # clean up
-    apt-get clean && rm -rf /root/.cache /tmp/*
+    rm -rf /tmp/*
