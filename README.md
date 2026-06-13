@@ -10,57 +10,18 @@ MVC is written in Python 3 and has the following dependencies:
 * [Minimap2](https://github.com/lh3/minimap2)
 * [Samtools](https://github.com/samtools/samtools)
 * [ViralConsensus](https://github.com/niemasd/ViralConsensus)
-* [BioBloom Tools](https://github.com/bcgsc/biobloom) (optional: only used for host-filtering)
 
 We also provide a Docker image with all dependencies installed: [niemasd/multivirusconsensus](https://hub.docker.com/r/niemasd/multivirusconsensus)
 
 # Usage
 
-MVC can be used as follows:
-
-```
-usage: MultiVirusConsensus.py [-h] -i READS [READS ...] -r REFERENCE [REFERENCE ...] [-p [PRIMER ...]] -o OUTPUT
-                              [--quiet] [--threads THREADS] [--include_multimapped]
-                              [--minimap2_path MINIMAP2_PATH] [--minimap2_args MINIMAP2_ARGS]
-                              [--samtools_path SAMTOOLS_PATH]
-                              [--viral_consensus_path VIRAL_CONSENSUS_PATH] [--viral_consensus_args VIRAL_CONSENSUS_ARGS]
-
-MultiVirusConsensus (MVC): Fast consensus genome reconstruction of multiple viruses
-
-options:
-  -h, --help                                                              show this help message and exit
-  -i READS [READS ...], --reads READS [READS ...]                         Input Viral Reads (FASTQ)
-  -r REFERENCE [REFERENCE ...], --reference REFERENCE [REFERENCE ...]     Reference Viral Genome(s) (FASTA)
-  -p [PRIMER ...], --primer [PRIMER ...]                                  Primers (BED)
-  -o OUTPUT, --output OUTPUT                                              Output Folder
-  -bf BIOBLOOM_FILTER, --biobloom_filter BIOBLOOM_FILTER                  BioBloom Filter (for optional host filtering)
-  --quiet                                                                 Suppress Log Output
-  --threads THREADS                                                       Number of Threads for Minimap2/Samtools/BioBloom
-  --include_multimapped                                                   Include Multimapped Reads in Consensus
-  --skip_run                                                              Skip Running the Analysis Script
-  --biobloomcategorizer_path BIOBLOOMCATEGORIZER_PATH                     BioBloom Categorizer Path
-  --minimap2_path MINIMAP2_PATH                                           Minimap2 Path (default: minimap2)
-  --minimap2_args MINIMAP2_ARGS                                           Minimap2 Arguments (default: -x sr)
-  --samtools_path SAMTOOLS_PATH                                           Samtools Path (default: samtools)
-  --viral_consensus_path VIRAL_CONSENSUS_PATH                             ViralConsensus Path (default: viral_consensus)
-  --viral_consensus_args VIRAL_CONSENSUS_ARGS                             ViralConsensus Arguments (default: )
-```
+A help message demonstrating MVC usage can be viewed using the `-h/--help` argument.
 
 ## Example
 
 ```bash
 ./MultiVirusConsensus.py -o output -i example/reads.illumina.30X.fq.gz -r example/NC_001802.fas example/NC_045512.fas example/NC_063383.fas -p example/NC_045512.bed
 ```
-
-## Host Filtering (optional)
-
-By default, MVC does not perform host filtering: it assumes that the reads are ready to be processed as-is. However, if you have a sample that needs to be host-filtered, you can provide MVC a [BioBloom](https://github.com/bcgsc/biobloom) filter constructed from the host genome sequence via the optional `-bf/--biobloom_filter` argument. For example, the following command could be used to build a BioBloom filter from the [hg38](https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000001405.40/) reference human genome using 8 threads:
-
-```bash
-biobloommaker -t 8 -p hg38 GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
-```
-
-Note that BioBloom supports creating a single filter from a collection of host genome sequences (e.g. multiple different species, or multiple reference sequences from the same species). For more details about how to use BioBloom, as well as how to tweak filter size (and thus memory) vs. accuracy, please refer to the [BioBloom documentation](https://github.com/bcgsc/biobloom?tab=readme-ov-file#2).
 
 ## Optional Arguments
 
