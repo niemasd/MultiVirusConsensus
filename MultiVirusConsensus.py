@@ -62,6 +62,30 @@ def print_log(s='', end='\n'):
         print(tmp, file=LOGFILE, end=end)
         LOGFILE.flush()
 
+# check minimap2
+def check_minimap2(minimap2_path='minimap2'):
+    command = [str(minimap2_path), '-h']
+    try:
+        run(command, stdout=DEVNULL, stderr=DEVNULL)
+    except:
+        raise RuntimeError(f"Unable to execute dependency: {minimap2_path}")
+
+# check samtools
+def check_samtools(samtools_path='samtools'):
+    command = [str(samtools_path), 'version']
+    try:
+        run(command, stdout=DEVNULL, stderr=DEVNULL)
+    except:
+        raise RuntimeError(f"Unable to execute dependency: {samtools_path}")
+
+# check viral_consensus
+def check_viral_consensus(viral_consensus_path='viral_consensus'):
+    command = [str(viral_consensus_path), '-h']
+    try:
+        run(command, stdout=DEVNULL, stderr=DEVNULL)
+    except:
+        raise RuntimeError(f"Unable to execute dependency: {viral_consensus_path}")
+
 # parse command-line fragment
 def shell_words(s):
     if s is None or str(s).strip() == '':
@@ -693,7 +717,15 @@ def run_streaming_pipeline(args, refs, primers):
 
 # main program logic
 def main():
+    # parse user args first (so -h works)
     args = parse_args()
+
+    # check dependencies first
+    check_minimap2(args.minimap2_path)
+    check_samtools(args.samtools_path)
+    check_viral_consensus(args.viral_consensus_path)
+
+    # dependencies exist, so run program
     args.output.mkdir(parents=True)
     global QUIET; QUIET = args.quiet
     global LOGFILE; LOGFILE = open_file(args.output / 'MultiVirusConsensus.log', 'wt')
