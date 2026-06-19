@@ -4,7 +4,6 @@ Create coverage plots from a MultiVirusConsensus output folder
 '''
 
 # imports
-from glob import glob
 from matplotlib.backends.backend_pdf import PdfPages
 from os import remove
 from os.path import isfile
