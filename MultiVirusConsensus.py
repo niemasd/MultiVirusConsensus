@@ -24,6 +24,7 @@ LOGFILE = None
 KEEP_MULTIMAPPED_OPTIONS = ['all', 'best', 'none']
 DEFAULT_NUM_THREADS = cpu_count()
 DEFAULT_KEEP_MULTIMAPPED = 'none'
+DEFAULT_MIN_BREADTH_PERCENT = 0
 DEFAULT_MINIMAP2_ARGS = '-x sr'
 DEFAULT_VIRALCONSENSUS_ARGS = ''
 DEFAULT_BUFSIZE = 1048576 # 1 MB
@@ -128,6 +129,7 @@ def parse_args():
     parser.add_argument('--quiet', action='store_true', help="Suppress Log Output")
     parser.add_argument('--threads', required=False, type=int, default=DEFAULT_NUM_THREADS, help="Number of Threads for Minimap2/Samtools")
     parser.add_argument('--keep_multimapped', required=False, type=str, default=DEFAULT_KEEP_MULTIMAPPED, help=f"What to Keep for Multimapped Reads (options: {', '.join(KEEP_MULTIMAPPED_OPTIONS)})")
+    parser.add_argument('--min_breadth_percent', required=False, type=float, default=DEFAULT_MIN_BREADTH_PERCENT, help="Minimum Non-Ambiguous Symbol Percentage (warning if below)")
     parser.add_argument('--minimap2_path', required=False, type=str, default='minimap2', help="Path to 'minimap2' Executable (for FASTQ input)")
     parser.add_argument('--minimap2_args', required=False, type=str, default=DEFAULT_MINIMAP2_ARGS, help="Arguments for 'minimap2' (for FASTQ input)")
     parser.add_argument('--samtools_path', required=False, type=str, default='samtools', help="Path to 'samtools' Executable")
@@ -154,6 +156,8 @@ def parse_args():
     args.keep_multimapped = args.keep_multimapped.strip().lower()
     if args.keep_multimapped not in KEEP_MULTIMAPPED_OPTIONS:
         raise ValueError(f"Invalid 'Keep Multimapped' mode ({args.keep_multimapped}). Options: {', '.join(KEEP_MULTIMAPPED_OPTIONS)}")
+    if (args.min_breadth_percent < 0) or (args.min_breadth_percent > 1):
+        raise ValueError(f"Minimum non-ambiguous breadth percentage must be between 0 and 1: {args.min_breadth_percent}")
     return args
 
 # load FASTA file
@@ -715,6 +719,20 @@ def run_streaming_pipeline(args, refs, primers):
         terminate_processes(processes)
         raise
 
+# print warning for each viral reference sequence with non-N below a given threshold
+def warn_breadth_percent(out_path, breadth_threshold):
+    for fas_path in out_path.glob('*.consensus.fas'):
+        with open_file(fas_path, mode='rt') as fas_f:
+            fas_seq = fas_f.readlines()[1].strip()
+        fas_seq_len = len(fas_seq)
+        unambig_count = fas_seq_len - fas_seq.count('N')
+        if unambig_count < (breadth_threshold * fas_seq_len):
+            if fas_seq_len == 0:
+                breadth = 0
+            else:
+                breadth = unambig_count / fas_seq_len
+            print_log(f"WARNING: {fas_path.name} breadth ({breadth}) below threshold ({breadth_threshold})")
+
 # main program logic
 def main():
     # parse user args first (so -h works)
@@ -749,6 +767,8 @@ def main():
         print_log(f"Loaded {len(refs)} reference genome(s)")
         print_log(f"Loaded primer records for {len(primers)} reference genome(s)")
         run_streaming_pipeline(args, refs, primers)
+        if args.min_breadth_percent > 0:
+            warn_breadth_percent(args.output, args.min_breadth_percent)
         print_log("MVC execution complete")
     finally:
         if LOGFILE is not None:
