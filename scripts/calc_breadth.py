@@ -13,7 +13,7 @@ if __name__ == "__main__":
         print("USAGE: %s <MVC_output>" % argv[0]); exit(1)
     out_path = Path(argv[1])
     if not out_path.is_dir():
-        raise ValueError(f"Folder not found: {argv[1]}")
+        raise ValueError(f"Directory not found: {argv[1]}")
     print("reference\tlength\tnum_ambiguous\tnum_unambiguous\tbreadth")
     for p in out_path.glob('*.consensus.fas'):
         with open(p, mode='rt') as f:
