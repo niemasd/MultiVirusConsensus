@@ -14,7 +14,7 @@ if __name__ == "__main__":
     out_path = Path(argv[1])
     if not out_path.is_dir():
         raise ValueError(f"Folder not found: {argv[1]}")
-    print("file\tlength\tnum_ambiguous\tnum_unambiguous\tbreadth")
+    print("reference\tlength\tnum_ambiguous\tnum_unambiguous\tbreadth")
     for p in out_path.glob('*.consensus.fas'):
         with open(p, mode='rt') as f:
             seq = f.readlines()[1].strip()
@@ -25,4 +25,4 @@ if __name__ == "__main__":
             breadth = 0
         else:
             breadth = num_unambig / seq_len
-        print(f"{p.name}\t{seq_len}\t{num_ambig}\t{num_unambig}\t{breadth}")
+        print(f"{p.name.replace('.consensus.fas','')}\t{seq_len}\t{num_ambig}\t{num_unambig}\t{breadth}")
