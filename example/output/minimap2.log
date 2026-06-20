@@ -1,0 +1,10 @@
+[M::mm_idx_gen::0.011*0.93] collected minimizers
+[M::mm_idx_gen::0.015*1.97] sorted minimizers
+[M::main::0.015*1.97] loaded/built the index for 3 target sequence(s)
+[M::mm_mapopt_update::0.015*1.97] mid_occ = 1000
+[M::mm_idx_stat] kmer size: 21; skip: 11; is_hpc: 0; #seq: 3
+[M::mm_idx_stat::0.015*1.93] distinct minimizers: 38332 (97.15% are singletons); average occurrences: 1.031; average spacing: 5.979; total length: 236293
+[M::worker_pipeline::1.044*1.28] mapped 70860 sequences
+[M::main] Version: 2.30-r1287
+[M::main] CMD: minimap2 -a -t 8 -x sr example/output/references.fas example/reads.illumina.30X.fq.gz
+[M::main] Real time: 1.046 sec; CPU: 1.334 sec; Peak RSS: 0.041 GB

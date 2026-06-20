@@ -1,0 +1,43 @@
+[2026-06-20 16:45:35] === MultiVirusConsensus (MVC) v0.1.0 ===
+[2026-06-20 16:45:35] Command: ./MultiVirusConsensus.py -o example/output -i example/reads.illumina.30X.fq.gz -r example/NC_001802.fas example/NC_045512.fas example/NC_063383.fas -p example/NC_045512.bed
+[2026-06-20 16:45:35] Input Viral Reads/Alignments: example/reads.illumina.30X.fq.gz
+[2026-06-20 16:45:35] FASTQ Input(s): example/reads.illumina.30X.fq.gz
+[2026-06-20 16:45:35] SAM/BAM Input(s): None
+[2026-06-20 16:45:35] Reference FASTA(s): example/NC_001802.fas	example/NC_045512.fas	example/NC_063383.fas
+[2026-06-20 16:45:35] Primer BED(s): example/NC_045512.bed
+[2026-06-20 16:45:35] Output Directory: example/output
+[2026-06-20 16:45:35] What to Keep for Multimapped Reads: none
+[2026-06-20 16:45:35] Number of Threads for minimap2/samtools: 8
+[2026-06-20 16:45:35] minimap2 Path: minimap2
+[2026-06-20 16:45:35] minimap2 Version: 2.30-r1287
+[2026-06-20 16:45:35] minimap2 Arguments: -x sr
+[2026-06-20 16:45:35] samtools Path: samtools
+[2026-06-20 16:45:35] samtools Version: 1.23
+[2026-06-20 16:45:35] viral_consensus Path: viral_consensus
+[2026-06-20 16:45:35] viral_consensus Version: 1.0.4
+[2026-06-20 16:45:35] viral_consensus Arguments: 
+[2026-06-20 16:45:35] Loaded 3 reference genome(s)
+[2026-06-20 16:45:35] Loaded primer records for 1 reference genome(s)
+[2026-06-20 16:45:35] FASTQ input file(s): example/reads.illumina.30X.fq.gz
+[2026-06-20 16:45:35] SAM/BAM input file(s): None
+[2026-06-20 16:45:35] Writing merged reference FASTA directly to output folder: example/output/references.fas
+[2026-06-20 16:45:35] Started viral_consensus for reference: NC_001802.1
+[2026-06-20 16:45:35] Started viral_consensus for reference: NC_045512.2
+[2026-06-20 16:45:35] Started viral_consensus for reference: NC_063383.1
+[2026-06-20 16:45:35] Starting output samtools: samtools view -@ 8 -b -o example/output/reads.bam -
+[2026-06-20 16:45:35] Emitted merged SAM header with 5 line(s)
+[2026-06-20 16:45:35] Starting minimap2: minimap2 -a -t 8 -x sr example/output/references.fas example/reads.illumina.30X.fq.gz
+[2026-06-20 16:45:36] Read 70865 SAM line(s) from 'minimap2':
+[2026-06-20 16:45:36] - 5 header
+[2026-06-20 16:45:36] - 70860 alignment
+[2026-06-20 16:45:36] - 67005 routed to viral_consensus
+[2026-06-20 16:45:36] - 3855 filtered
+[2026-06-20 16:45:36] - 0 ignored for non-consensus/unknown references
+[2026-06-20 16:45:36] Overall routed SAM summary:
+[2026-06-20 16:45:36] - 70865 line(s)
+[2026-06-20 16:45:36] - 5 source header line(s) skipped
+[2026-06-20 16:45:36] - 70860 alignment line(s)
+[2026-06-20 16:45:36] - 67005 routed to viral_consensus
+[2026-06-20 16:45:36] - 3855 filtered
+[2026-06-20 16:45:36] - 0 ignored for non-consensus/unknown references
+[2026-06-20 16:45:37] MVC execution complete

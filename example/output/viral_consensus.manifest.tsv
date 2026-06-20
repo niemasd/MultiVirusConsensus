@@ -1,0 +1,4 @@
+reference_id	safe_name	reference_fasta	primer_bed	consensus	poscounts	inscounts	log
+NC_001802.1	NC_001802.1	NC_001802.1.reference.fas		NC_001802.1.consensus.fas	NC_001802.1.poscounts.tsv	NC_001802.1.inscounts.json	NC_001802.1.viral_consensus.log
+NC_045512.2	NC_045512.2	NC_045512.2.reference.fas	NC_045512.2.primers.bed	NC_045512.2.consensus.fas	NC_045512.2.poscounts.tsv	NC_045512.2.inscounts.json	NC_045512.2.viral_consensus.log
+NC_063383.1	NC_063383.1	NC_063383.1.reference.fas		NC_063383.1.consensus.fas	NC_063383.1.poscounts.tsv	NC_063383.1.inscounts.json	NC_063383.1.viral_consensus.log
