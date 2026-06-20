@@ -64,9 +64,9 @@ def print_log(s='', end='\n'):
 
 # check minimap2
 def check_minimap2(minimap2_path='minimap2'):
-    command = [str(minimap2_path), '-h']
+    command = [str(minimap2_path), '--version']
     try:
-        run(command, stdout=DEVNULL, stderr=DEVNULL)
+        return run(command, capture_output=True, check=True, text=True).stdout.strip()
     except:
         raise RuntimeError(f"Unable to execute dependency: {minimap2_path}")
 
@@ -74,15 +74,15 @@ def check_minimap2(minimap2_path='minimap2'):
 def check_samtools(samtools_path='samtools'):
     command = [str(samtools_path), 'version']
     try:
-        run(command, stdout=DEVNULL, stderr=DEVNULL)
+        return run(command, capture_output=True, check=True, text=True).stdout.splitlines()[0].strip().split()[-1].strip()
     except:
         raise RuntimeError(f"Unable to execute dependency: {samtools_path}")
 
 # check viral_consensus
 def check_viral_consensus(viral_consensus_path='viral_consensus'):
-    command = [str(viral_consensus_path), '-h']
+    command = [str(viral_consensus_path), '--version']
     try:
-        run(command, stdout=DEVNULL, stderr=DEVNULL)
+        return run(command, capture_output=True, check=True, text=True).stdout.strip().split()[-1].replace('v','').strip()
     except:
         raise RuntimeError(f"Unable to execute dependency: {viral_consensus_path}")
 
@@ -721,9 +721,9 @@ def main():
     args = parse_args()
 
     # check dependencies first
-    check_minimap2(args.minimap2_path)
-    check_samtools(args.samtools_path)
-    check_viral_consensus(args.viral_consensus_path)
+    minimap2_version = check_minimap2(args.minimap2_path)
+    samtools_version = check_samtools(args.samtools_path)
+    viral_consensus_version = check_viral_consensus(args.viral_consensus_path)
 
     # dependencies exist, so run program
     args.output.mkdir(parents=True)
@@ -741,9 +741,12 @@ def main():
         print_log(f"What to Keep for Multimapped Reads: {args.keep_multimapped}")
         print_log(f"Number of Threads for minimap2/samtools: {args.threads}")
         print_log(f"minimap2 Path: {args.minimap2_path}")
+        print_log(f"minimap2 Version: {minimap2_version}")
         print_log(f"minimap2 Arguments: {args.minimap2_args}")
         print_log(f"samtools Path: {args.samtools_path}")
+        print_log(f"samtools Version: {samtools_version}")
         print_log(f"viral_consensus Path: {args.viral_consensus_path}")
+        print_log(f"viral_consensus Version: {viral_consensus_version}")
         print_log(f"viral_consensus Arguments: {args.viral_consensus_args}")
         refs, primers = load_references(args.reference, args.primer)
         print_log(f"Loaded {len(refs)} reference genome(s)")
