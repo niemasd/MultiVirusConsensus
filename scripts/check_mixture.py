@@ -12,7 +12,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('mvc_output', type=str, help="MVC Output Folder")
     parser.add_argument('-d', '--min_depth', type=int, default=10, help="Minimum Depth")
-    parser.add_argument('-f', '--min_freq', type=float, default=0.5, help="Minimum Consensus Frequency to *Not* be Called Mixture")
+    parser.add_argument('-f', '--min_freq', type=float, default=0.9, help="Minimum Consensus Frequency to *Not* be Called Mixture")
     args = parser.parse_args()
     args.mvc_output = Path(args.mvc_output)
     if not args.mvc_output.is_dir():

@@ -119,6 +119,10 @@ def classify_read_inputs(paths):
 
 # parse user args
 def parse_args():
+    # check for -v/--version
+    if ('-v' in argv) or ('--version' in argv):
+        print(VERSION); exit(0)
+
     # parse args
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-i', '--reads', required=True, type=str, nargs='+', help="Input Viral Reads/Alignments (FASTQ/SAM/BAM)")
@@ -133,6 +137,7 @@ def parse_args():
     parser.add_argument('--samtools_path', required=False, type=str, default='samtools', help="Path to 'samtools' Executable")
     parser.add_argument('--viral_consensus_path', required=False, type=str, default='viral_consensus', help="Path to 'viral_consensus' Executable")
     parser.add_argument('--viral_consensus_args', required=False, type=str, default=DEFAULT_VIRALCONSENSUS_ARGS, help="Arguments for 'viral_consensus'")
+    parser.add_argument('-v', '--version', action='store_true', help="Print Version Number")
     args = parser.parse_args()
 
     # convert file/folder names to Path objects
