@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 '''
-Check each consensus sequence of an MVC output, and report all that have breadth (non-N) below a given threshold
+Check each consensus sequence of an MVC output, and report all of their breadths (% non-N)
 '''
 
 # imports
