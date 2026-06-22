@@ -6,7 +6,6 @@ MultiVirusConsensus (MVC): Fast consensus genome reconstruction of multiple viru
 
 MVC is written in Python 3 and has the following dependencies:
 
-* `bash`
 * [Minimap2](https://github.com/lh3/minimap2)
 * [Samtools](https://github.com/samtools/samtools)
 * [ViralConsensus](https://github.com/niemasd/ViralConsensus)
