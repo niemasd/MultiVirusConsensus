@@ -10,6 +10,14 @@ MVC is written in Python 3 and has the following dependencies:
 * [Samtools](https://github.com/samtools/samtools)
 * [ViralConsensus](https://github.com/niemasd/ViralConsensus)
 
+Once you have all dependencies installed, you can simply download [MultiVirusConsensus.py](https://github.com/niemasd/MultiVirusConsensus/releases/latest/download/MultiVirusConsensus.py) to your machine and make it executable:
+
+```bash
+wget "https://github.com/niemasd/MultiVirusConsensus/releases/latest/download/MultiVirusConsensus.py"
+chmod a+x MultiVirusConsensus.py
+sudo mv MultiVirusConsensus.py /usr/local/bin/MultiVirusConsensus.py # optional step to install globally
+```
+
 We also provide a Docker image with all dependencies installed: [niemasd/multivirusconsensus](https://hub.docker.com/r/niemasd/multivirusconsensus)
 
 # Usage
