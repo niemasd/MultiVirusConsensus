@@ -18,7 +18,7 @@ import re
 import shlex
 
 # useful constants
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 QUIET = False
 LOGFILE = None
 KEEP_MULTIMAPPED_OPTIONS = ['all', 'best', 'none']
@@ -35,6 +35,7 @@ SAM_RNAME_RE = re.compile(br'^[^\t\r\n]+\t[^\t\r\n]+\t([^\t\r\n]+)\t')
 SAM_FLAG_MAPQ_RE = re.compile(br'^[^\t\r\n]+\t([0-9]+)\t[^\t\r\n]*\t[^\t\r\n]*\t([0-9]+)\t')
 SAM_HEADER_SN_RE = re.compile(br'(?:^|\t)SN:([^\t\r\n]+)')
 SAFE_FILENAME_RE = re.compile(r'[^A-Za-z0-9._-]+')
+COL_DELIM = '\t'
 
 # open a file
 def open_file(path, mode='rt', buffering=DEFAULT_BUFSIZE):
@@ -676,8 +677,8 @@ def run_streaming_pipeline(args, refs, primers):
     bam_path = out_path / 'reads.bam'
     samtools_log_path = out_path / 'samtools.log'
     refs_path = out_path / 'references.fas'
-    print_log(f"FASTQ input file(s): {'\t'.join(str(path) for path in args.fastq_inputs) if args.fastq_inputs else None}")
-    print_log(f"SAM/BAM input file(s): {'\t'.join(str(path) for path in args.alignment_inputs) if args.alignment_inputs else None}")
+    print_log(f"FASTQ input file(s): {COL_DELIM.join(str(path) for path in args.fastq_inputs) if args.fastq_inputs else None}")
+    print_log(f"SAM/BAM input file(s): {COL_DELIM.join(str(path) for path in args.alignment_inputs) if args.alignment_inputs else None}")
     print_log(f"Writing merged reference FASTA directly to output folder: {refs_path}")
     write_bytes_to_path(refs_path, references_to_fasta_bytes(refs))
     header_info = collect_alignment_header_info(args, args.alignment_inputs, refs) if args.alignment_inputs else SamHeaderInfo(extra_sq_lines={}, non_sq_header_lines=[])
@@ -737,11 +738,11 @@ def main():
     try:
         print_log(f"=== MultiVirusConsensus (MVC) v{VERSION} ===")
         print_log(f"Command: {' '.join(argv)}")
-        print_log(f"Input Viral Reads/Alignments: {'\t'.join(str(path) for path in args.reads)}")
-        print_log(f"FASTQ Input(s): {'\t'.join(str(path) for path in args.fastq_inputs) if args.fastq_inputs else None}")
-        print_log(f"SAM/BAM Input(s): {'\t'.join(str(path) for path in args.alignment_inputs) if args.alignment_inputs else None}")
-        print_log(f"Reference FASTA(s): {'\t'.join(str(path) for path in args.reference)}")
-        print_log(f"Primer BED(s): {'\t'.join(str(path) for path in args.primer) if args.primer else None}")
+        print_log(f"Input Viral Reads/Alignments: {COL_DELIM.join(str(path) for path in args.reads)}")
+        print_log(f"FASTQ Input(s): {COL_DELIM.join(str(path) for path in args.fastq_inputs) if args.fastq_inputs else None}")
+        print_log(f"SAM/BAM Input(s): {COL_DELIM.join(str(path) for path in args.alignment_inputs) if args.alignment_inputs else None}")
+        print_log(f"Reference FASTA(s): {COL_DELIM.join(str(path) for path in args.reference)}")
+        print_log(f"Primer BED(s): {COL_DELIM.join(str(path) for path in args.primer) if args.primer else None}")
         print_log(f"Output Directory: {args.output}")
         print_log(f"What to Keep for Multimapped Reads: {args.keep_multimapped}")
         print_log(f"Number of Threads for minimap2/samtools: {args.threads}")
