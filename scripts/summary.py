@@ -18,7 +18,7 @@ BAM_STATS = dict()
 def calc_bam_stats(bam_path):
     # set up dict
     BAM_STATS['reads_unmapped'] = 0
-    BAM_STATS['reads_mapped'] = 0
+    BAM_STATS['reads_mapped'] = dict() # keys = references, values = counts
     BAM_STATS['bases_total'] = 0
     BAM_STATS['bases_q30'] = 0
 
@@ -35,8 +35,10 @@ def calc_bam_stats(bam_path):
 
             # handle only primary alignments
             elif not (aln.is_secondary or aln.is_supplementary):
-                BAM_STATS['reads_mapped'] += 1
-    BAM_STATS['reads_total'] = BAM_STATS['reads_unmapped'] + BAM_STATS['reads_mapped']
+                if aln.reference_name not in BAM_STATS['reads_mapped']:
+                    BAM_STATS['reads_mapped'][aln.reference_name] = 0
+                BAM_STATS['reads_mapped'][aln.reference_name] += 1
+    BAM_STATS['reads_total'] = BAM_STATS['reads_unmapped'] + sum(BAM_STATS['reads_mapped'].values())
 
 # get the value of a given column for a given reference genome
 def get_value(out_path, ref, col):
@@ -44,10 +46,12 @@ def get_value(out_path, ref, col):
         calc_bam_stats(out_path / 'reads.bam')
     ref = ref.strip().upper()
     col = col.strip().lower()
-    if col in BAM_STATS:
-        return BAM_STATS[col]
-    elif col == 'reference':
+    if col == 'reference':
         return ref
+    elif col == 'reads_mapped':
+        return BAM_STATS['reads_mapped'][ref]
+    elif col in BAM_STATS:
+        return BAM_STATS[col]
     else:
         raise ValueError(f"Unknown column name: {col}")
 
