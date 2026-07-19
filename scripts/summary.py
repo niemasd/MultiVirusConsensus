@@ -11,8 +11,13 @@ from subprocess import run
 from sys import argv, stdout
 
 # constants
-HEADER = ['reference', 'reads_total', 'bases_total', 'bases_q30', 'reads_mapped']
+MIN_BASE_QUAL = 30
+MIN_COVERAGE = 10
+HEADER = ['reference', 'reference_length', 'reads_total', 'bases_total', f'bases_q{MIN_BASE_QUAL}', 'reads_mapped']
+
+# cached values
 BAM_STATS = dict()
+REF_LENS = dict()
 
 # calculate multiple statistics from a MVC output BAM in a single pass over the alignments
 def calc_bam_stats(bam_path):
@@ -20,14 +25,14 @@ def calc_bam_stats(bam_path):
     BAM_STATS['reads_unmapped'] = 0
     BAM_STATS['reads_mapped'] = dict() # keys = references, values = counts
     BAM_STATS['bases_total'] = 0
-    BAM_STATS['bases_q30'] = 0
+    BAM_STATS[f'bases_q{MIN_BASE_QUAL}'] = 0
 
     # calc stats
     with AlignmentFile(bam_path, 'rb') as bam:
         for aln in bam:
-            # count total and Q30 bases
+            # count total and qual-passing bases
             BAM_STATS['bases_total'] += len(aln.query_qualities)
-            BAM_STATS['bases_q30'] += sum(1 for score in aln.query_qualities if score >= 30)
+            BAM_STATS[f'bases_q{MIN_BASE_QUAL}'] += sum(1 for score in aln.query_qualities if score >= MIN_BASE_QUAL)
 
             # handle unmapped reads
             if aln.is_unmapped:
@@ -40,14 +45,35 @@ def calc_bam_stats(bam_path):
                 BAM_STATS['reads_mapped'][aln.reference_name] += 1
     BAM_STATS['reads_total'] = BAM_STATS['reads_unmapped'] + sum(BAM_STATS['reads_mapped'].values())
 
+# calculate reference lengths
+def calc_ref_lens(refs_path):
+    REF_LENS.clear()
+    with open(refs_path, 'rt') as ref_f:
+        lines = [l.strip() for l in ref_f.read().strip().splitlines()]
+    ID = None; seq_len = None
+    for line in lines:
+        if line.startswith('>'):
+            if ID is not None:
+                REF_LENS[ID] = seq_len
+            ID = line.split()[0][1:].strip(); seq_len = 0
+        else:
+            seq_len += len(line)
+    if ID is not None:
+        REF_LENS[ID] = seq_len
+    return REF_LENS
+
 # get the value of a given column for a given reference genome
 def get_value(out_path, ref, col):
     if len(BAM_STATS) == 0:
         calc_bam_stats(out_path / 'reads.bam')
+    if len(REF_LENS) == 0:
+        calc_ref_lens(out_path / 'references.fas')
     ref = ref.strip().upper()
     col = col.strip().lower()
     if col == 'reference':
         return ref
+    elif col == 'reference_length':
+        return REF_LENS[ref]
     elif col == 'reads_mapped':
         return BAM_STATS['reads_mapped'][ref]
     elif col in BAM_STATS:
