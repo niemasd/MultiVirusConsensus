@@ -7,6 +7,7 @@ Calculate a summary TSV from a MultiVirusConsensus output
 from csv import writer
 from pathlib import Path
 from pysam import AlignmentFile
+from statistics import mean, median
 from subprocess import run
 from sys import argv, stdout
 
@@ -18,15 +19,19 @@ HEADER = [
     'reads_total',
     'bases_total',
     f'bases_q{MIN_BASE_QUAL}',
+    f'bases_q{MIN_BASE_QUAL}_prop',
     'reads_mapped',
     'reads_mapped_prop',
     'reference_length',
     f'positions_cov>={MIN_COVERAGE}',
     f'positions_cov>={MIN_COVERAGE}_prop',
+    'positions_cov_mean',
+    'positions_cov_median',
 ]
 
 # cached values
 BAM_STATS = dict()
+REF_NAMES = dict()
 REF_LENS = dict()
 POS_COV_METRICS = dict()
 
@@ -38,7 +43,7 @@ def calc_bam_stats(bam_path):
     BAM_STATS['bases_total'] = 0
     BAM_STATS[f'bases_q{MIN_BASE_QUAL}'] = 0
 
-    # calc stats
+    # calculate stats from BAM
     with AlignmentFile(bam_path, 'rb') as bam:
         for aln in bam:
             # count total and qual-passing bases
@@ -54,11 +59,15 @@ def calc_bam_stats(bam_path):
                 if aln.reference_name not in BAM_STATS['reads_mapped']:
                     BAM_STATS['reads_mapped'][aln.reference_name] = 0
                 BAM_STATS['reads_mapped'][aln.reference_name] += 1
+
+    # calculate final stats
     BAM_STATS['reads_total'] = BAM_STATS['reads_unmapped'] + sum(BAM_STATS['reads_mapped'].values())
     BAM_STATS['reads_mapped_prop'] = {k : v/BAM_STATS['reads_total'] for k, v in BAM_STATS['reads_mapped'].items()}
+    BAM_STATS[f'bases_q{MIN_BASE_QUAL}_prop'] = BAM_STATS[f'bases_q{MIN_BASE_QUAL}'] / BAM_STATS['bases_total']
 
-# calculate reference lengths
-def calc_ref_lens(refs_path):
+# parse references FASTA
+def parse_refs(refs_path):
+    REF_NAMES.clear()
     REF_LENS.clear()
     with open(refs_path, 'rt') as ref_f:
         lines = [l.strip() for l in ref_f.read().strip().splitlines()]
@@ -67,7 +76,10 @@ def calc_ref_lens(refs_path):
         if line.startswith('>'):
             if ID is not None:
                 REF_LENS[ID] = seq_len
-            ID = line.split()[0][1:].strip(); seq_len = 0
+            ref_name = line[1:]
+            ID = ref_name.split()[0].strip()
+            seq_len = 0
+            REF_NAMES[ID] = ref_name
         else:
             seq_len += len(line)
     if ID is not None:
@@ -76,13 +88,23 @@ def calc_ref_lens(refs_path):
 
 # calculate position coverage metrics
 def calc_pos_cov_metrics(out_path):
+    # set things up
     POS_COV_METRICS[f'positions_cov>={MIN_COVERAGE}'] = dict()
+    POS_COV_METRICS['positions_cov_mean'] = dict()
+    POS_COV_METRICS['positions_cov_median'] = dict()
+
+    # calculate metrics from position count TSV files
     for path in out_path.glob('*.poscounts.tsv'):
         ref = path.name.replace('.poscounts.tsv','').strip()
         with open(path, 'rt') as f:
-            POS_COV_METRICS[f'positions_cov>={MIN_COVERAGE}'][ref] = sum(1 for line_num, line in enumerate(f) if line_num != 0 and int(line.split()[-1]) >= MIN_COVERAGE)
+            coverages = [int(line.split()[-1]) for line_num, line in enumerate(f) if line_num != 0]
+        POS_COV_METRICS[f'positions_cov>={MIN_COVERAGE}'][ref] = sum(1 for cov in coverages if cov >= MIN_COVERAGE)
+        POS_COV_METRICS['positions_cov_mean'][ref] = mean(coverages)
+        POS_COV_METRICS['positions_cov_median'][ref] = median(coverages)
+
+    # calculate final metrics
     if len(REF_LENS) == 0:
-        calc_ref_lens(out_path / 'references.fas')
+        parse_refs(out_path / 'references.fas')
     POS_COV_METRICS[f'positions_cov>={MIN_COVERAGE}_prop'] = {k : v/REF_LENS[k] for k, v in POS_COV_METRICS[f'positions_cov>={MIN_COVERAGE}'].items()}
 
 # get the value of a given column for a given reference genome
@@ -90,13 +112,13 @@ def get_value(out_path, ref, col):
     if len(BAM_STATS) == 0:
         calc_bam_stats(out_path / 'reads.bam')
     if len(REF_LENS) == 0:
-        calc_ref_lens(out_path / 'references.fas')
+        parse_refs(out_path / 'references.fas')
     if len(POS_COV_METRICS) == 0:
         calc_pos_cov_metrics(out_path)
     ref = ref.strip().upper()
     col = col.strip().lower()
     if col == 'reference':
-        return ref
+        return REF_NAMES[ref]
     elif col == 'reference_length':
         return REF_LENS[ref]
     elif col.startswith('positions'):
