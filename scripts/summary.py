@@ -13,7 +13,15 @@ from sys import argv, stdout
 # constants
 MIN_BASE_QUAL = 30
 MIN_COVERAGE = 10
-HEADER = ['reference', 'reference_length', 'reads_total', 'bases_total', f'bases_q{MIN_BASE_QUAL}', 'reads_mapped']
+HEADER = [
+    'reference',
+    'reads_total',
+    'bases_total',
+    f'bases_q{MIN_BASE_QUAL}',
+    'reads_mapped',
+    'reference_length',
+    f'positions_cov>={MIN_COVERAGE}',
+]
 
 # cached values
 BAM_STATS = dict()
@@ -74,6 +82,9 @@ def get_value(out_path, ref, col):
         return ref
     elif col == 'reference_length':
         return REF_LENS[ref]
+    elif col == f'positions_cov>={MIN_COVERAGE}':
+        with open(out_path / f'{ref}.poscounts.tsv', 'rt') as poscounts_f:
+            return sum(1 for line_num, line in enumerate(poscounts_f) if line_num != 0 and int(line.split()[-1]) >= MIN_COVERAGE)
     elif col == 'reads_mapped':
         return BAM_STATS['reads_mapped'][ref]
     elif col in BAM_STATS:
