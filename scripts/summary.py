@@ -20,6 +20,15 @@ HEADER = [
     'bases_total',
     f'bases_q{MIN_BASE_QUAL}',
     f'bases_q{MIN_BASE_QUAL}_prop',
+    'base_a',
+    'base_c',
+    'base_g',
+    'base_t',
+    'base_a_prop',
+    'base_c_prop',
+    'base_g_prop',
+    'base_t_prop',
+    'reads_gc_content',
     'reads_mapped',
     'reads_mapped_prop',
     'reference_length',
@@ -47,28 +56,36 @@ def calc_bam_stats(bam_path):
     BAM_STATS['reads_mapped'] = dict() # keys = references, values = counts
     BAM_STATS['bases_total'] = 0
     BAM_STATS[f'bases_q{MIN_BASE_QUAL}'] = 0
+    for b in 'acgt':
+        BAM_STATS[f'base_{b}'] = 0
 
     # calculate stats from BAM
     with AlignmentFile(bam_path, 'rb') as bam:
         for aln in bam:
-            # count total and qual-passing bases
-            BAM_STATS['bases_total'] += len(aln.query_qualities)
-            BAM_STATS[f'bases_q{MIN_BASE_QUAL}'] += sum(1 for score in aln.query_qualities if score >= MIN_BASE_QUAL)
-
             # handle unmapped reads
             if aln.is_unmapped:
                 BAM_STATS['reads_unmapped'] += 1
 
             # handle only primary alignments
             elif not (aln.is_secondary or aln.is_supplementary):
+                # handle mapped reads count
                 if aln.reference_name not in BAM_STATS['reads_mapped']:
                     BAM_STATS['reads_mapped'][aln.reference_name] = 0
                 BAM_STATS['reads_mapped'][aln.reference_name] += 1
+
+                # handle base counts
+                BAM_STATS[f'bases_q{MIN_BASE_QUAL}'] += sum(1 for score in aln.query_qualities if score >= MIN_BASE_QUAL)
+                BAM_STATS['bases_total'] += len(aln.query_sequence)
+                for b in aln.query_sequence.lower():
+                    BAM_STATS[f'base_{b}'] += 1
 
     # calculate final stats
     BAM_STATS['reads_total'] = BAM_STATS['reads_unmapped'] + sum(BAM_STATS['reads_mapped'].values())
     BAM_STATS['reads_mapped_prop'] = {k : v/BAM_STATS['reads_total'] for k, v in BAM_STATS['reads_mapped'].items()}
     BAM_STATS[f'bases_q{MIN_BASE_QUAL}_prop'] = BAM_STATS[f'bases_q{MIN_BASE_QUAL}'] / BAM_STATS['bases_total']
+    BAM_STATS['reads_gc_content'] = (BAM_STATS['base_c'] + BAM_STATS['base_g']) / BAM_STATS['bases_total']
+    for b in 'acgt':
+        BAM_STATS[f'base_{b}_prop'] = BAM_STATS[f'base_{b}'] / BAM_STATS['bases_total']
 
 # parse references FASTA
 def parse_refs(refs_path):
@@ -137,11 +154,11 @@ def get_value(out_path, ref, col):
     elif col == 'reference_length':
         return REF_LENS[ref]
     elif col == 'consensus_path':
-        return out_path / f'{ref}.consensus.fas'
+        return out_path.resolve() / f'{ref}.consensus.fas'
     elif col == 'poscounts_path':
-        return out_path / f'{ref}.poscounts.tsv'
+        return out_path.resolve() / f'{ref}.poscounts.tsv'
     elif col == 'inscounts_path':
-        return out_path / f'{ref}.inscounts.json'
+        return out_path.resolve() / f'{ref}.inscounts.json'
     elif col.startswith('positions'):
         return POS_COV_METRICS[col][ref]
     elif col.startswith('reads_mapped'):
