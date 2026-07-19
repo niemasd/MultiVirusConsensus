@@ -27,6 +27,10 @@ HEADER = [
     f'positions_cov>={MIN_COVERAGE}_prop',
     'positions_cov_mean',
     'positions_cov_median',
+    'consensus_path',
+    'poscounts_path',
+    'inscounts_path',
+    'mvc_version',
 ]
 
 # cached values
@@ -34,6 +38,7 @@ BAM_STATS = dict()
 REF_NAMES = dict()
 REF_LENS = dict()
 POS_COV_METRICS = dict()
+RUN_INFO = dict()
 
 # calculate multiple statistics from a MVC output BAM in a single pass over the alignments
 def calc_bam_stats(bam_path):
@@ -107,6 +112,14 @@ def calc_pos_cov_metrics(out_path):
         parse_refs(out_path / 'references.fas')
     POS_COV_METRICS[f'positions_cov>={MIN_COVERAGE}_prop'] = {k : v/REF_LENS[k] for k, v in POS_COV_METRICS[f'positions_cov>={MIN_COVERAGE}'].items()}
 
+# calculate general info about the run
+def calc_run_info(out_path):
+    RUN_INFO.clear()
+    with open(out_path / 'MultiVirusConsensus.log', 'rt') as f:
+        for l in f:
+            if "MultiVirusConsensus (MVC) v" in l:
+                RUN_INFO['mvc_version'] = l.replace('=','').strip().split()[-1].replace('v','').strip()
+
 # get the value of a given column for a given reference genome
 def get_value(out_path, ref, col):
     if len(BAM_STATS) == 0:
@@ -115,16 +128,26 @@ def get_value(out_path, ref, col):
         parse_refs(out_path / 'references.fas')
     if len(POS_COV_METRICS) == 0:
         calc_pos_cov_metrics(out_path)
+    if len(RUN_INFO) == 0:
+        calc_run_info(out_path)
     ref = ref.strip().upper()
     col = col.strip().lower()
     if col == 'reference':
         return REF_NAMES[ref]
     elif col == 'reference_length':
         return REF_LENS[ref]
+    elif col == 'consensus_path':
+        return out_path / f'{ref}.consensus.fas'
+    elif col == 'poscounts_path':
+        return out_path / f'{ref}.poscounts.tsv'
+    elif col == 'inscounts_path':
+        return out_path / f'{ref}.inscounts.json'
     elif col.startswith('positions'):
         return POS_COV_METRICS[col][ref]
     elif col.startswith('reads_mapped'):
         return BAM_STATS[col][ref]
+    elif col in RUN_INFO:
+        return RUN_INFO[col]
     elif col in BAM_STATS:
         return BAM_STATS[col]
     else:
