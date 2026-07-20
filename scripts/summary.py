@@ -4,41 +4,23 @@ Calculate a summary TSV from a MultiVirusConsensus output
 '''
 
 # imports
+#from Bio.Align import PairwiseAligner
 from csv import writer
+from datetime import datetime
+from multiprocessing import Pool
 from pathlib import Path
 from pysam import AlignmentFile
+from sequence_align.pairwise import needleman_wunsch
 from statistics import mean, median
-from subprocess import run
-from sys import argv, stdout
+from sys import argv, stderr, stdout
+from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
+from warnings import catch_warnings, simplefilter
 import argparse
 
 # constants
 MIN_BASE_QUAL = 30
 MIN_COVERAGE = 10
-HEADER = [
-    'reference',
-    'reads_total',
-    'bases_total',
-    f'bases_q{MIN_BASE_QUAL}',
-    f'bases_q{MIN_BASE_QUAL}_prop',
-    'base_a',
-    'base_c',
-    'base_g',
-    'base_t',
-    'base_a_prop',
-    'base_c_prop',
-    'base_g_prop',
-    'base_t_prop',
-    'reads_gc_content',
-    'reads_mapped',
-    'reads_mapped_prop',
-    'reference_length',
-    f'positions_cov>={MIN_COVERAGE}',
-    f'positions_cov>={MIN_COVERAGE}_prop',
-    'positions_cov_mean',
-    'positions_cov_median',
-    'mvc_version',
-]
 
 # cached values
 BAM_STATS = dict()
@@ -46,6 +28,15 @@ REF_NAMES = dict()
 REF_LENS = dict()
 POS_COV_METRICS = dict()
 RUN_INFO = dict()
+INDELS = dict()
+
+# get current time
+def get_time():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# print log message
+def print_log(s='', end='\n', file=stderr):
+    print(f"[{get_time()}] {s}", file=file, end=end)
 
 # calculate multiple statistics from a MVC output BAM in a single pass over the alignments
 def calc_bam_stats(bam_path):
@@ -58,8 +49,9 @@ def calc_bam_stats(bam_path):
         BAM_STATS[f'base_{b}'] = 0
 
     # calculate stats from BAM
+    print_log(f"Calculating BAM statistics from: {bam_path}")
     with AlignmentFile(bam_path, 'rb') as bam:
-        for aln in bam:
+        for aln in tqdm(bam):
             # handle unmapped reads
             if aln.is_unmapped:
                 BAM_STATS['reads_unmapped'] += 1
@@ -89,21 +81,21 @@ def calc_bam_stats(bam_path):
 def parse_refs(refs_path):
     REF_NAMES.clear()
     REF_LENS.clear()
-    with open(refs_path, 'rt') as ref_f:
-        lines = [l.strip() for l in ref_f.read().strip().splitlines()]
-    ID = None; seq_len = None
-    for line in lines:
-        if line.startswith('>'):
-            if ID is not None:
-                REF_LENS[ID] = seq_len
-            ref_name = line[1:]
-            ID = ref_name.split()[0].strip()
-            seq_len = 0
-            REF_NAMES[ID] = ref_name
-        else:
-            seq_len += len(line)
-    if ID is not None:
-        REF_LENS[ID] = seq_len
+    print_log(f"Parsing references FASTA: {refs_path}")
+    with tqdm() as pbar:
+        with open(refs_path, 'rt') as ref_f:
+            while True:
+                tmp = ref_f.readline()
+                if not tmp:
+                    break
+                ref_name = tmp[1:].strip()
+                ID = ref_name.split()[0]
+                REF_NAMES[ID] = ref_name
+                tmp = ref_f.readline()
+                if not tmp:
+                    raise ValueError(f"Invalid references FASTA: {refs_path}")
+                REF_LENS[ID] = len(tmp.strip())
+                pbar.update(1)
     return REF_LENS
 
 # calculate position coverage metrics
@@ -114,7 +106,8 @@ def calc_pos_cov_metrics(out_path):
     POS_COV_METRICS['positions_cov_median'] = dict()
 
     # calculate metrics from position count TSV files
-    for path in out_path.glob('*.poscounts.tsv'):
+    print_log("Calculating position coverage metrics...")
+    for path in tqdm(list(out_path.glob('*.poscounts.tsv'))):
         ref = path.name.replace('.poscounts.tsv','').strip()
         with open(path, 'rt') as f:
             coverages = [int(line.split()[-1]) for line_num, line in enumerate(f) if line_num != 0]
@@ -135,6 +128,18 @@ def calc_run_info(out_path):
             if "MultiVirusConsensus (MVC) v" in l:
                 RUN_INFO['mvc_version'] = l.replace('=','').strip().split()[-1].replace('v','').strip()
 
+# calculate consensus indels
+def calc_indels(out_path):
+    INDELS.clear()
+    INDELS['insertions'] = dict()
+    INDELS['deletions'] = dict()
+    print_log(f"Calculating consensus indels...")
+    for poscounts_path in tqdm(list(out_path.glob('*.poscounts.tsv'))):
+        ID = poscounts_path.name.replace('.poscounts.tsv','').strip()
+        incounts_path = poscounts_path.parent / poscounts_path.name.replace('.poscounts.tsv','.inscounts.json')
+        INDELS['insertions'][ID] = 0 # TODO
+        INDELS['deletions'][ID] = 0 # TODO
+
 # get the value of a given column for a given reference genome
 def get_value(out_path, ref, col):
     if len(BAM_STATS) == 0:
@@ -145,6 +150,8 @@ def get_value(out_path, ref, col):
         calc_pos_cov_metrics(out_path)
     if len(RUN_INFO) == 0:
         calc_run_info(out_path)
+    if len(INDELS) == 0:
+        calc_indels(out_path)
     ref = ref.strip().upper()
     col = col.strip().lower()
     if col == 'reference':
@@ -165,6 +172,8 @@ def get_value(out_path, ref, col):
         return RUN_INFO[col]
     elif col in BAM_STATS:
         return BAM_STATS[col]
+    elif col in INDELS:
+        return INDELS[col][ref]
     else:
         raise ValueError(f"Unknown column name: {col}")
 
@@ -178,23 +187,54 @@ def main():
     args.mvc_output = Path(args.mvc_output)
     if not args.mvc_output.is_dir():
         raise ValueError(f"Directory not found: {args.mvc_output}")
+    print_log(f"MultiVirusConsensus output folder: {args.mvc_output}")
     args.output = args.output.strip().lower()
+    print_log(f"Summary TSV output: {args.output}")
     if args.output == 'stdout':
         args.output = stdout
-    elif args.output == 'stderr':
-        args.output = stderr
     else:
         args.output = Path(args.output)
         if args.output.exists():
             raise ValueError(f"Summary output exists: {args.output}")
         args.output = open(args.output, 'wt')
 
+    # define header row
+    header = [
+        'reference',
+        'reads_total',
+        'bases_total',
+        f'bases_q{MIN_BASE_QUAL}',
+        f'bases_q{MIN_BASE_QUAL}_prop',
+        'base_a',
+        'base_c',
+        'base_g',
+        'base_t',
+        'base_a_prop',
+        'base_c_prop',
+        'base_g_prop',
+        'base_t_prop',
+        'reads_gc_content',
+        'reads_mapped',
+        'reads_mapped_prop',
+        'reference_length',
+        f'positions_cov>={MIN_COVERAGE}',
+        f'positions_cov>={MIN_COVERAGE}_prop',
+        'positions_cov_mean',
+        'positions_cov_median',
+        'insertions',
+        'deletions',
+        'mvc_version',
+    ]
+
     # calculate summary info
+    print_log("Loading reference genome IDs...")
     refs = [p.name.replace('.consensus.fas','') for p in args.mvc_output.glob('*.consensus.fas')]
+    print_log("Setting up output TSV writer...")
     tsv = writer(args.output, delimiter='\t')
-    tsv.writerow(HEADER)
+    tsv.writerow(header)
+    print_log("Writing summary TSV output...")
     for ref in refs:
-        tsv.writerow([get_value(args.mvc_output, ref, col) for col in HEADER])
+        tsv.writerow([get_value(args.mvc_output, ref, col) for col in header])
     args.output.close()
 
 # run tool
