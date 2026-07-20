@@ -10,6 +10,7 @@ from pysam import AlignmentFile
 from statistics import mean, median
 from subprocess import run
 from sys import argv, stdout
+import argparse
 
 # constants
 MIN_BASE_QUAL = 30
@@ -36,9 +37,6 @@ HEADER = [
     f'positions_cov>={MIN_COVERAGE}_prop',
     'positions_cov_mean',
     'positions_cov_median',
-    'consensus_path',
-    'poscounts_path',
-    'inscounts_path',
     'mvc_version',
 ]
 
@@ -170,15 +168,35 @@ def get_value(out_path, ref, col):
     else:
         raise ValueError(f"Unknown column name: {col}")
 
-# run tool
-if __name__ == "__main__":
-    if len(argv) != 2 or '-h' in argv or '--help' in argv or '-help' in argv:
-        print("USAGE: %s <MVC_output>" % argv[0]); exit(1)
-    out_path = Path(argv[1])
-    if not out_path.is_dir():
-        raise ValueError(f"Directory not found: {argv[1]}")
-    refs = [p.name.replace('.consensus.fas','') for p in out_path.glob('*.consensus.fas')]
-    tsv = writer(stdout, delimiter='\t')
+# main program logic
+def main():
+    # parse user args
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('mvc_output', type=str, help="MVC Output Folder")
+    parser.add_argument('-o', '--output', type=str, default='stdout', help="Summary TSV Output")
+    args = parser.parse_args()
+    args.mvc_output = Path(args.mvc_output)
+    if not args.mvc_output.is_dir():
+        raise ValueError(f"Directory not found: {args.mvc_output}")
+    args.output = args.output.strip().lower()
+    if args.output == 'stdout':
+        args.output = stdout
+    elif args.output == 'stderr':
+        args.output = stderr
+    else:
+        args.output = Path(args.output)
+        if args.output.exists():
+            raise ValueError(f"Summary output exists: {args.output}")
+        args.output = open(args.output, 'wt')
+
+    # calculate summary info
+    refs = [p.name.replace('.consensus.fas','') for p in args.mvc_output.glob('*.consensus.fas')]
+    tsv = writer(args.output, delimiter='\t')
     tsv.writerow(HEADER)
     for ref in refs:
-        tsv.writerow([get_value(out_path, ref, col) for col in HEADER])
+        tsv.writerow([get_value(args.mvc_output, ref, col) for col in HEADER])
+    args.output.close()
+
+# run tool
+if __name__ == "__main__":
+    main()
