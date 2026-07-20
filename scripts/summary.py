@@ -7,6 +7,7 @@ Calculate a summary TSV from a MultiVirusConsensus output
 #from Bio.Align import PairwiseAligner
 from csv import writer
 from datetime import datetime
+from json import load as jload
 from multiprocessing import Pool
 from pathlib import Path
 from pysam import AlignmentFile
@@ -117,13 +118,15 @@ def calc_pos_cov_metrics(out_path, min_coverage=DEFAULT_MIN_COVERAGE):
         POS_COV_METRICS[f'positions_cov>={min_coverage}'][ref] = sum(1 for cov in coverages if cov >= min_coverage)
         POS_COV_METRICS['positions_cov_mean'][ref] = mean(coverages)
         POS_COV_METRICS['positions_cov_median'][ref] = median(coverages)
-        INDELS[f'deletions>={min_coverage}'][ref] = sum(1 for row in rows if row[-2] >= min_coverage)
+        INDELS[f'deletions>={min_coverage}'][ref] = sum(1 for row in rows if row[-2] >= min_coverage and row[-2] == max(row))
 
     # calculate metrics from insertion count JSON files
     print_log("Calculating insertion count metrics...")
     for path in tqdm(list(out_path.glob('*.inscounts.json'))):
         ref = path.name.replace('.inscounts.json','').strip()
-        INDELS[f'insertions>={min_coverage}'][ref] = 0 # TODO IMPLEMENT
+        with open(path, 'rt') as f:
+            inscounts = jload(f)
+        INDELS[f'insertions>={min_coverage}'][ref] = sum(1 for count_dict in inscounts.values() if count_dict[''] != max(count_dict.values()) and max(count_dict.values()) >= min_coverage)
 
     # calculate final metrics
     if len(REF_LENS) == 0:
