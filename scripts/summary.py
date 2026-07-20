@@ -191,9 +191,9 @@ def main():
     if not args.mvc_output.is_dir():
         raise ValueError(f"Directory not found: {args.mvc_output}")
     print_log(f"MultiVirusConsensus output folder: {args.mvc_output}")
-    args.output = args.output.strip().lower()
+    args.output = args.output.strip()
     print_log(f"Summary TSV output: {args.output}")
-    if args.output == 'stdout':
+    if args.output.lower() == 'stdout':
         args.output = stdout
     else:
         args.output = Path(args.output)
