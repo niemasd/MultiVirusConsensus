@@ -186,6 +186,7 @@ def main():
     parser.add_argument('-o', '--output', type=str, default='stdout', help="Summary TSV Output")
     parser.add_argument('--min_base_qual', type=int, default=DEFAULT_MIN_BASE_QUAL, help="Minimum Base Quality")
     parser.add_argument('--min_coverage', type=int, default=DEFAULT_MIN_COVERAGE, help="Minimum Coverage")
+    parser.add_argument('--include_base_freqs', action='store_true', help="Include Base Frequencies")
     args = parser.parse_args()
     args.mvc_output = Path(args.mvc_output)
     if not args.mvc_output.is_dir():
@@ -208,14 +209,6 @@ def main():
         'bases_total',
         f'bases_q{args.min_base_qual}',
         f'bases_q{args.min_base_qual}_prop',
-        'base_a',
-        'base_c',
-        'base_g',
-        'base_t',
-        'base_a_prop',
-        'base_c_prop',
-        'base_g_prop',
-        'base_t_prop',
         'reads_gc_content',
         'reads_mapped',
         'reads_mapped_prop',
@@ -226,8 +219,12 @@ def main():
         'positions_cov_median',
         f'insertions>={args.min_coverage}',
         f'deletions>={args.min_coverage}',
-        'mvc_version',
     ]
+    if args.include_base_freqs:
+        header += ['base_a', 'base_c', 'base_g', 'base_t', 'base_a_prop', 'base_c_prop', 'base_g_prop', 'base_t_prop']
+    header.append('mvc_version')
+    if len(header) != len(set(header)):
+        raise ValueError(f"Header has duplicates: {header}")
 
     # calculate summary info
     print_log("Loading reference genome IDs...")
