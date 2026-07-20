@@ -104,16 +104,26 @@ def calc_pos_cov_metrics(out_path, min_coverage=DEFAULT_MIN_COVERAGE):
     POS_COV_METRICS[f'positions_cov>={min_coverage}'] = dict()
     POS_COV_METRICS['positions_cov_mean'] = dict()
     POS_COV_METRICS['positions_cov_median'] = dict()
+    INDELS['insertions'] = dict()
+    INDELS['deletions'] = dict()
 
     # calculate metrics from position count TSV files
     print_log("Calculating position coverage metrics...")
     for path in tqdm(list(out_path.glob('*.poscounts.tsv'))):
         ref = path.name.replace('.poscounts.tsv','').strip()
-        with open(path, 'rt') as f:
-            coverages = [int(line.split()[-1]) for line_num, line in enumerate(f) if line_num != 0]
+        with open(path, 'rt') as f: # rows are [Position, A, C, G, T, -, Total]
+            rows = [[int(x) for x in line.split('\t')] for line_num, line in enumerate(f) if line_num != 0]
+        coverages = [row[-1] for row in rows]
         POS_COV_METRICS[f'positions_cov>={min_coverage}'][ref] = sum(1 for cov in coverages if cov >= min_coverage)
         POS_COV_METRICS['positions_cov_mean'][ref] = mean(coverages)
         POS_COV_METRICS['positions_cov_median'][ref] = median(coverages)
+        INDELS['deletions'][ref] = sum(1 for row in rows if row[-2] >= min_coverage)
+
+    # calculate metrics from insertion count JSON files
+    print_log("Calculating insertion count metrics...")
+    for path in tqdm(list(out_path.glob('*.inscounts.json'))):
+        ref = path.name.replace('.inscounts.json','').strip()
+        INDELS['insertions'][ref] = 0 # TODO IMPLEMENT
 
     # calculate final metrics
     if len(REF_LENS) == 0:
@@ -127,18 +137,6 @@ def calc_run_info(out_path):
         for l in f:
             if "MultiVirusConsensus (MVC) v" in l:
                 RUN_INFO['mvc_version'] = l.replace('=','').strip().split()[-1].replace('v','').strip()
-
-# calculate consensus indels
-def calc_indels(out_path):
-    INDELS.clear()
-    INDELS['insertions'] = dict()
-    INDELS['deletions'] = dict()
-    print_log(f"Calculating consensus indels...")
-    for poscounts_path in tqdm(list(out_path.glob('*.poscounts.tsv'))):
-        ID = poscounts_path.name.replace('.poscounts.tsv','').strip()
-        incounts_path = poscounts_path.parent / poscounts_path.name.replace('.poscounts.tsv','.inscounts.json')
-        INDELS['insertions'][ID] = 0 # TODO
-        INDELS['deletions'][ID] = 0 # TODO
 
 # get the value of a given column for a given reference genome
 def get_value(out_path, ref, col, min_base_qual=DEFAULT_MIN_BASE_QUAL, min_coverage=DEFAULT_MIN_COVERAGE):
