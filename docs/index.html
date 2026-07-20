@@ -308,7 +308,7 @@
   }
 
   // make a plot
-  function makePlot({X, refLen, fracInfo, dense}){
+  function makePlot({X, refName, refLen, fracInfo, dense}){
     const plot = document.createElement("div");
     plot.className = "plot";
     const header = document.createElement("div");
@@ -317,7 +317,7 @@
     left.className = "plot-left";
     const title = document.createElement("div");
     title.className = "plot-title";
-    title.textContent = X;
+    title.textContent = refName || X;
     const meta = document.createElement("div");
     meta.className = "plot-meta";
     meta.textContent = `Consensus non-N: ${fracInfo.nonN}/${fracInfo.len} (${(fracInfo.frac*100).toFixed(2)}%) • Reference length: ${refLen}`;
@@ -345,7 +345,7 @@
     plot.appendChild(wrap);
     plot.appendChild(warn);
     elPlots.appendChild(plot);
-    const model = { X, refLen, fracInfo, dense, svg, wrap, tooltip };
+    const model = { X, refName, refLen, fracInfo, dense, svg, wrap, tooltip };
     models.push(model);
     dlBtn.addEventListener("click", () => downloadSVG(model, `${model.X}.svg`));
     render(model);
@@ -620,12 +620,12 @@
     const genomes = [];
     const missing = [];
     for (const X of genomeIDs){
-      const refName = `${X}.reference.fas`;
-      const conName = `${X}.consensus.fas`;
-      const tsvName = `${X}.poscounts.tsv`;
-      const refFile = filesByName.get(refName);
-      const conFile = filesByName.get(conName);
-      const tsvFile = filesByName.get(tsvName);
+      const refFilename = `${X}.reference.fas`;
+      const conFilename = `${X}.consensus.fas`;
+      const tsvFilename = `${X}.poscounts.tsv`;
+      const refFile = filesByName.get(refFilename);
+      const conFile = filesByName.get(conFilename);
+      const tsvFile = filesByName.get(tsvFilename);
       if (!refFile || !conFile || !tsvFile){
         missing.push({X, ref:!!refFile, consensus:!!conFile, poscounts:!!tsvFile});
         continue;
@@ -633,11 +633,12 @@
       const [refText, conText, tsvText] = await Promise.all([refFile.text(), conFile.text(), tsvFile.text()]);
       const ref = parseFasta(refText);
       const con = parseFasta(conText);
+      const refName = ref.header || X;
       const refLen = ref.seq.length;
       const fracInfo = nonNFraction(con.seq);
       const tsvRows = parseTSVPoscounts(tsvText);
       const dense = buildDenseRows(refLen, tsvRows);
-      genomes.push({X, refLen, fracInfo, dense});
+      genomes.push({X, refName, refLen, fracInfo, dense});
     }
     genomes.sort((a,b) => (b.fracInfo.frac - a.fracInfo.frac) || (b.fracInfo.nonN - a.fracInfo.nonN) || (a.X.localeCompare(b.X)));
 

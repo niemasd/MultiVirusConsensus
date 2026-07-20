@@ -18,7 +18,7 @@ import re
 import shlex
 
 # useful constants
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 QUIET = False
 LOGFILE = None
 KEEP_MULTIMAPPED_OPTIONS = ['all', 'best', 'none']
@@ -36,6 +36,13 @@ SAM_FLAG_MAPQ_RE = re.compile(br'^[^\t\r\n]+\t([0-9]+)\t[^\t\r\n]*\t[^\t\r\n]*\t
 SAM_HEADER_SN_RE = re.compile(br'(?:^|\t)SN:([^\t\r\n]+)')
 SAFE_FILENAME_RE = re.compile(r'[^A-Za-z0-9._-]+')
 COL_DELIM = '\t'
+
+# a reference sequence, keeping its complete FASTA header separately from the
+# first whitespace-delimited token used as the reference ID
+@dataclass(frozen=True)
+class ReferenceRecord:
+    header: str
+    sequence: str
 
 # open a file
 def open_file(path, mode='rt', buffering=DEFAULT_BUFSIZE):
@@ -166,6 +173,7 @@ def parse_args():
 def load_fasta(path):
     seqs = dict()
     name = None
+    header = None
     seq_chunks = list()
     with open_file(path, 'rt') as infile:
         for line in infile:
@@ -177,8 +185,12 @@ def load_fasta(path):
                     seq = ''.join(seq_chunks)
                     if len(seq) == 0:
                         raise ValueError(f"Malformed FASTA: {path}")
-                    seqs[name] = seq
-                name = l.split()[0][1:]
+                    seqs[name] = ReferenceRecord(header=header, sequence=seq)
+                header = l[1:]
+                header_fields = header.split()
+                if len(header_fields) == 0:
+                    raise ValueError(f"Malformed FASTA header: {path}")
+                name = header_fields[0]
                 if name in seqs:
                     raise ValueError(f"Duplicate sequence ID ({name}): {path}")
                 seq_chunks = list()
@@ -187,7 +199,7 @@ def load_fasta(path):
     seq = ''.join(seq_chunks)
     if name is None or len(seq) == 0:
         raise ValueError(f"Malformed FASTA: {path}")
-    seqs[name] = seq
+    seqs[name] = ReferenceRecord(header=header, sequence=seq)
     return seqs
 
 # load BED file
@@ -233,14 +245,14 @@ def load_references(ref_paths, primer_paths=list()):
     return refs, primers
 
 # convert a single reference sequence to a FASTA record as bytes
-def single_reference_to_fasta_bytes(ref_id, ref_seq):
-    return f">{ref_id}\n{ref_seq}\n".encode('utf-8')
+def single_reference_to_fasta_bytes(ref_record):
+    return f">{ref_record.header}\n{ref_record.sequence}\n".encode('utf-8')
 
 # convert all reference sequences to a large FASTA file as bytes
 def references_to_fasta_bytes(refs):
     chunks = list()
-    for ref_id, ref_seq in refs.items():
-        chunks.append(single_reference_to_fasta_bytes(ref_id, ref_seq))
+    for ref_record in refs.values():
+        chunks.append(single_reference_to_fasta_bytes(ref_record))
     return b''.join(chunks)
 
 # convert a name to a safe name
@@ -367,7 +379,7 @@ def parse_sq_fields(line):
 
 # collect header metadata from SAM/BAM input
 def collect_alignment_header_info(args, alignment_paths, refs):
-    ref_lengths_by_bytes = {ref_id.encode('utf-8'): len(seq) for ref_id, seq in refs.items()}
+    ref_lengths_by_bytes = {ref_id.encode('utf-8'): len(ref_record.sequence) for ref_id, ref_record in refs.items()}
     extra_sq_lines = dict()
     non_sq_header_lines = list()
     seen_non_sq = set()
@@ -408,10 +420,10 @@ def collect_alignment_header_info(args, alignment_paths, refs):
     return SamHeaderInfo(extra_sq_lines=extra_sq_lines, non_sq_header_lines=non_sq_header_lines)
 
 # build combined SAM header
-def build_combined_sam_header(refs: Dict[str, str], header_info: SamHeaderInfo) -> List[bytes]:
+def build_combined_sam_header(refs: Dict[str, ReferenceRecord], header_info: SamHeaderInfo) -> List[bytes]:
     lines: List[bytes] = [b"@HD\tVN:1.6\tSO:unknown\n"]
-    for ref_id, ref_seq in refs.items():
-        lines.append(f"@SQ\tSN:{ref_id}\tLN:len(ref_seq)\n".encode('utf-8'))
+    for ref_id, ref_record in refs.items():
+        lines.append(f"@SQ\tSN:{ref_id}\tLN:{len(ref_record.sequence)}\n".encode('utf-8'))
     for sn in sorted(header_info.extra_sq_lines):
         lines.append(header_info.extra_sq_lines[sn])
     lines.extend(header_info.non_sq_header_lines)
@@ -430,10 +442,10 @@ def start_viral_consensus_jobs(args, refs, primers, out_path):
     jobs = dict()
     if len(refs) >= REFS_PROCESS_WARNING_LIMIT:
         print_log(f"WARNING: starting {len(refs)} 'viral_consensus' subprocesses at once. This may require higher OS process/open-file limits.")
-    for ref_id, ref_seq in refs.items():
+    for ref_id, ref_record in refs.items():
         safe = safe_names[ref_id]
         ref_path = out_path / f'{safe}.reference.fas'
-        write_bytes_to_path(ref_path, single_reference_to_fasta_bytes(ref_id, ref_seq))
+        write_bytes_to_path(ref_path, single_reference_to_fasta_bytes(ref_record))
         primer_path = None
         if ref_id in primers:
             primer_path = out_path / f'{safe}.primers.bed'
