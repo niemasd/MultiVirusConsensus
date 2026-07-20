@@ -19,8 +19,8 @@ from warnings import catch_warnings, simplefilter
 import argparse
 
 # constants
-MIN_BASE_QUAL = 30
-MIN_COVERAGE = 10
+DEFAULT_MIN_BASE_QUAL = 30
+DEFAULT_MIN_COVERAGE = 10
 
 # cached values
 BAM_STATS = dict()
@@ -39,12 +39,12 @@ def print_log(s='', end='\n', file=stderr):
     print(f"[{get_time()}] {s}", file=file, end=end)
 
 # calculate multiple statistics from a MVC output BAM in a single pass over the alignments
-def calc_bam_stats(bam_path):
+def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL):
     # set up dict
     BAM_STATS['reads_unmapped'] = 0
     BAM_STATS['reads_mapped'] = dict() # keys = references, values = counts
     BAM_STATS['bases_total'] = 0
-    BAM_STATS[f'bases_q{MIN_BASE_QUAL}'] = 0
+    BAM_STATS[f'bases_q{min_base_qual}'] = 0
     for b in 'acgt':
         BAM_STATS[f'base_{b}'] = 0
 
@@ -64,7 +64,7 @@ def calc_bam_stats(bam_path):
                 BAM_STATS['reads_mapped'][aln.reference_name] += 1
 
                 # handle base counts
-                BAM_STATS[f'bases_q{MIN_BASE_QUAL}'] += sum(1 for score in aln.query_qualities if score >= MIN_BASE_QUAL)
+                BAM_STATS[f'bases_q{min_base_qual}'] += sum(1 for score in aln.query_qualities if score >= min_base_qual)
                 BAM_STATS['bases_total'] += len(aln.query_sequence)
                 for b in aln.query_sequence.lower():
                     BAM_STATS[f'base_{b}'] += 1
@@ -72,7 +72,7 @@ def calc_bam_stats(bam_path):
     # calculate final stats
     BAM_STATS['reads_total'] = BAM_STATS['reads_unmapped'] + sum(BAM_STATS['reads_mapped'].values())
     BAM_STATS['reads_mapped_prop'] = {k : v/BAM_STATS['reads_total'] for k, v in BAM_STATS['reads_mapped'].items()}
-    BAM_STATS[f'bases_q{MIN_BASE_QUAL}_prop'] = BAM_STATS[f'bases_q{MIN_BASE_QUAL}'] / BAM_STATS['bases_total']
+    BAM_STATS[f'bases_q{min_base_qual}_prop'] = BAM_STATS[f'bases_q{min_base_qual}'] / BAM_STATS['bases_total']
     BAM_STATS['reads_gc_content'] = (BAM_STATS['base_c'] + BAM_STATS['base_g']) / BAM_STATS['bases_total']
     for b in 'acgt':
         BAM_STATS[f'base_{b}_prop'] = BAM_STATS[f'base_{b}'] / BAM_STATS['bases_total']
@@ -99,9 +99,9 @@ def parse_refs(refs_path):
     return REF_LENS
 
 # calculate position coverage metrics
-def calc_pos_cov_metrics(out_path):
+def calc_pos_cov_metrics(out_path, min_coverage=DEFAULT_MIN_COVERAGE):
     # set things up
-    POS_COV_METRICS[f'positions_cov>={MIN_COVERAGE}'] = dict()
+    POS_COV_METRICS[f'positions_cov>={min_coverage}'] = dict()
     POS_COV_METRICS['positions_cov_mean'] = dict()
     POS_COV_METRICS['positions_cov_median'] = dict()
 
@@ -111,14 +111,14 @@ def calc_pos_cov_metrics(out_path):
         ref = path.name.replace('.poscounts.tsv','').strip()
         with open(path, 'rt') as f:
             coverages = [int(line.split()[-1]) for line_num, line in enumerate(f) if line_num != 0]
-        POS_COV_METRICS[f'positions_cov>={MIN_COVERAGE}'][ref] = sum(1 for cov in coverages if cov >= MIN_COVERAGE)
+        POS_COV_METRICS[f'positions_cov>={min_coverage}'][ref] = sum(1 for cov in coverages if cov >= min_coverage)
         POS_COV_METRICS['positions_cov_mean'][ref] = mean(coverages)
         POS_COV_METRICS['positions_cov_median'][ref] = median(coverages)
 
     # calculate final metrics
     if len(REF_LENS) == 0:
         parse_refs(out_path / 'references.fas')
-    POS_COV_METRICS[f'positions_cov>={MIN_COVERAGE}_prop'] = {k : v/REF_LENS[k] for k, v in POS_COV_METRICS[f'positions_cov>={MIN_COVERAGE}'].items()}
+    POS_COV_METRICS[f'positions_cov>={min_coverage}_prop'] = {k : v/REF_LENS[k] for k, v in POS_COV_METRICS[f'positions_cov>={min_coverage}'].items()}
 
 # calculate general info about the run
 def calc_run_info(out_path):
@@ -141,13 +141,13 @@ def calc_indels(out_path):
         INDELS['deletions'][ID] = 0 # TODO
 
 # get the value of a given column for a given reference genome
-def get_value(out_path, ref, col):
+def get_value(out_path, ref, col, min_base_qual=DEFAULT_MIN_BASE_QUAL, min_coverage=DEFAULT_MIN_COVERAGE):
     if len(BAM_STATS) == 0:
-        calc_bam_stats(out_path / 'reads.bam')
+        calc_bam_stats(out_path / 'reads.bam', min_base_qual=min_base_qual)
     if len(REF_LENS) == 0:
         parse_refs(out_path / 'references.fas')
     if len(POS_COV_METRICS) == 0:
-        calc_pos_cov_metrics(out_path)
+        calc_pos_cov_metrics(out_path, min_coverage=min_coverage)
     if len(RUN_INFO) == 0:
         calc_run_info(out_path)
     if len(INDELS) == 0:
@@ -183,6 +183,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('mvc_output', type=str, help="MVC Output Folder")
     parser.add_argument('-o', '--output', type=str, default='stdout', help="Summary TSV Output")
+    parser.add_argument('--min_base_qual', type=int, default=DEFAULT_MIN_BASE_QUAL, help="Minimum Base Quality")
+    parser.add_argument('--min_coverage', type=int, default=DEFAULT_MIN_COVERAGE, help="Minimum Coverage")
     args = parser.parse_args()
     args.mvc_output = Path(args.mvc_output)
     if not args.mvc_output.is_dir():
@@ -203,8 +205,8 @@ def main():
         'reference',
         'reads_total',
         'bases_total',
-        f'bases_q{MIN_BASE_QUAL}',
-        f'bases_q{MIN_BASE_QUAL}_prop',
+        f'bases_q{args.min_base_qual}',
+        f'bases_q{args.min_base_qual}_prop',
         'base_a',
         'base_c',
         'base_g',
@@ -217,8 +219,8 @@ def main():
         'reads_mapped',
         'reads_mapped_prop',
         'reference_length',
-        f'positions_cov>={MIN_COVERAGE}',
-        f'positions_cov>={MIN_COVERAGE}_prop',
+        f'positions_cov>={args.min_coverage}',
+        f'positions_cov>={args.min_coverage}_prop',
         'positions_cov_mean',
         'positions_cov_median',
         'insertions',
@@ -234,7 +236,7 @@ def main():
     tsv.writerow(header)
     print_log("Writing summary TSV output...")
     for ref in refs:
-        tsv.writerow([get_value(args.mvc_output, ref, col) for col in header])
+        tsv.writerow([get_value(args.mvc_output, ref, col, min_base_qual=args.min_base_qual, min_coverage=args.min_coverage) for col in header])
     args.output.close()
 
 # run tool
