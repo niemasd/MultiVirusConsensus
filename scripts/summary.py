@@ -104,8 +104,8 @@ def calc_pos_cov_metrics(out_path, min_coverage=DEFAULT_MIN_COVERAGE):
     POS_COV_METRICS[f'positions_cov>={min_coverage}'] = dict()
     POS_COV_METRICS['positions_cov_mean'] = dict()
     POS_COV_METRICS['positions_cov_median'] = dict()
-    INDELS['insertions'] = dict()
-    INDELS['deletions'] = dict()
+    INDELS[f'insertions>={min_coverage}'] = dict()
+    INDELS[f'deletions>={min_coverage}'] = dict()
 
     # calculate metrics from position count TSV files
     print_log("Calculating position coverage metrics...")
@@ -117,13 +117,13 @@ def calc_pos_cov_metrics(out_path, min_coverage=DEFAULT_MIN_COVERAGE):
         POS_COV_METRICS[f'positions_cov>={min_coverage}'][ref] = sum(1 for cov in coverages if cov >= min_coverage)
         POS_COV_METRICS['positions_cov_mean'][ref] = mean(coverages)
         POS_COV_METRICS['positions_cov_median'][ref] = median(coverages)
-        INDELS['deletions'][ref] = sum(1 for row in rows if row[-2] >= min_coverage)
+        INDELS[f'deletions>={min_coverage}'][ref] = sum(1 for row in rows if row[-2] >= min_coverage)
 
     # calculate metrics from insertion count JSON files
     print_log("Calculating insertion count metrics...")
     for path in tqdm(list(out_path.glob('*.inscounts.json'))):
         ref = path.name.replace('.inscounts.json','').strip()
-        INDELS['insertions'][ref] = 0 # TODO IMPLEMENT
+        INDELS[f'insertions>={min_coverage}'][ref] = 0 # TODO IMPLEMENT
 
     # calculate final metrics
     if len(REF_LENS) == 0:
@@ -164,14 +164,14 @@ def get_value(out_path, ref, col, min_base_qual=DEFAULT_MIN_BASE_QUAL, min_cover
         return out_path.resolve() / f'{ref}.inscounts.json'
     elif col.startswith('positions'):
         return POS_COV_METRICS[col][ref]
+    elif col.startswith('insertions') or col.startswith('deletions'):
+        return INDELS[col][ref]
     elif col.startswith('reads_mapped'):
         return BAM_STATS[col][ref]
     elif col in RUN_INFO:
         return RUN_INFO[col]
     elif col in BAM_STATS:
         return BAM_STATS[col]
-    elif col in INDELS:
-        return INDELS[col][ref]
     else:
         raise ValueError(f"Unknown column name: {col}")
 
@@ -221,8 +221,8 @@ def main():
         f'positions_cov>={args.min_coverage}_prop',
         'positions_cov_mean',
         'positions_cov_median',
-        'insertions',
-        'deletions',
+        f'insertions>={args.min_coverage}',
+        f'deletions>={args.min_coverage}',
         'mvc_version',
     ]
 
