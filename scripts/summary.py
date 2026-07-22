@@ -36,23 +36,26 @@ def get_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # print log message
-def print_log(s='', end='\n', file=stderr):
-    print(f"[{get_time()}] {s}", file=file, end=end)
+def print_log(s='', end='\n', file=stderr, quiet=False):
+    if not quiet:
+        print(f"[{get_time()}] {s}", file=file, end=end)
 
 # calculate multiple statistics from a MVC output BAM in a single pass over the alignments
-def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL):
+def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL, quiet=False):
     # set up dict
+    if len(REF_LENS) == 0:
+        parse_refs(bam_path.parent / 'references.fas', quiet=quiet)
     BAM_STATS['reads_unmapped'] = 0
-    BAM_STATS['reads_mapped'] = dict() # keys = references, values = counts
+    BAM_STATS['reads_mapped'] = {k:0 for k in REF_LENS}
     BAM_STATS['bases_total'] = 0
     BAM_STATS[f'bases_q{min_base_qual}'] = 0
     for b in 'acgt':
         BAM_STATS[f'base_{b}'] = 0
 
     # calculate stats from BAM
-    print_log(f"Calculating BAM statistics from: {bam_path}")
+    print_log(f"Calculating BAM statistics from: {bam_path}", quiet=quiet)
     with AlignmentFile(bam_path, 'rb') as bam:
-        for aln in tqdm(bam):
+        for aln in tqdm(bam, disable=quiet):
             # handle unmapped reads
             if aln.is_unmapped:
                 BAM_STATS['reads_unmapped'] += 1
@@ -79,11 +82,11 @@ def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL):
         BAM_STATS[f'base_{b}_prop'] = BAM_STATS[f'base_{b}'] / BAM_STATS['bases_total']
 
 # parse references FASTA
-def parse_refs(refs_path):
+def parse_refs(refs_path, quiet=False):
     REF_NAMES.clear()
     REF_LENS.clear()
-    print_log(f"Parsing references FASTA: {refs_path}")
-    with tqdm() as pbar:
+    print_log(f"Parsing references FASTA: {refs_path}", quiet=quiet)
+    with tqdm(disable=quiet) as pbar:
         with open(refs_path, 'rt') as ref_f:
             while True:
                 tmp = ref_f.readline()
@@ -100,7 +103,7 @@ def parse_refs(refs_path):
     return REF_LENS
 
 # calculate position coverage metrics
-def calc_pos_cov_metrics(out_path, min_coverage=DEFAULT_MIN_COVERAGE):
+def calc_pos_cov_metrics(out_path, min_coverage=DEFAULT_MIN_COVERAGE, quiet=False):
     # set things up
     POS_COV_METRICS[f'positions_cov>={min_coverage}'] = dict()
     POS_COV_METRICS['positions_cov_mean'] = dict()
@@ -109,8 +112,8 @@ def calc_pos_cov_metrics(out_path, min_coverage=DEFAULT_MIN_COVERAGE):
     INDELS[f'deletions>={min_coverage}'] = dict()
 
     # calculate metrics from position count TSV files
-    print_log("Calculating position coverage metrics...")
-    for path in tqdm(list(out_path.glob('*.poscounts.tsv'))):
+    print_log("Calculating position coverage metrics...", quiet=quiet)
+    for path in tqdm(list(out_path.glob('*.poscounts.tsv')), disable=quiet):
         ref = path.name.replace('.poscounts.tsv','').strip()
         with open(path, 'rt') as f: # rows are [Position, A, C, G, T, -, Total]
             rows = [[int(x) for x in line.split('\t')] for line_num, line in enumerate(f) if line_num != 0]
@@ -121,8 +124,8 @@ def calc_pos_cov_metrics(out_path, min_coverage=DEFAULT_MIN_COVERAGE):
         INDELS[f'deletions>={min_coverage}'][ref] = sum(1 for row in rows if row[-2] >= min_coverage and row[-2] == max(row))
 
     # calculate metrics from insertion count JSON files
-    print_log("Calculating insertion count metrics...")
-    for path in tqdm(list(out_path.glob('*.inscounts.json'))):
+    print_log("Calculating insertion count metrics...", quiet=quiet)
+    for path in tqdm(list(out_path.glob('*.inscounts.json')), disable=quiet):
         ref = path.name.replace('.inscounts.json','').strip()
         with open(path, 'rt') as f:
             inscounts = jload(f)
@@ -130,7 +133,7 @@ def calc_pos_cov_metrics(out_path, min_coverage=DEFAULT_MIN_COVERAGE):
 
     # calculate final metrics
     if len(REF_LENS) == 0:
-        parse_refs(out_path / 'references.fas')
+        parse_refs(out_path / 'references.fas', quiet=quiet)
     POS_COV_METRICS[f'positions_cov>={min_coverage}_prop'] = {k : v/REF_LENS[k] for k, v in POS_COV_METRICS[f'positions_cov>={min_coverage}'].items()}
 
 # calculate general info about the run
@@ -142,13 +145,13 @@ def calc_run_info(out_path):
                 RUN_INFO['mvc_version'] = l.replace('=','').strip().split()[-1].replace('v','').strip()
 
 # get the value of a given column for a given reference genome
-def get_value(out_path, ref, col, min_base_qual=DEFAULT_MIN_BASE_QUAL, min_coverage=DEFAULT_MIN_COVERAGE):
+def get_value(out_path, ref, col, min_base_qual=DEFAULT_MIN_BASE_QUAL, min_coverage=DEFAULT_MIN_COVERAGE, quiet=False):
     if len(BAM_STATS) == 0:
-        calc_bam_stats(out_path / 'reads.bam', min_base_qual=min_base_qual)
+        calc_bam_stats(out_path / 'reads.bam', min_base_qual=min_base_qual, quiet=quiet)
     if len(REF_LENS) == 0:
-        parse_refs(out_path / 'references.fas')
+        parse_refs(out_path / 'references.fas', quiet=quiet)
     if len(POS_COV_METRICS) == 0:
-        calc_pos_cov_metrics(out_path, min_coverage=min_coverage)
+        calc_pos_cov_metrics(out_path, min_coverage=min_coverage, quiet=quiet)
     if len(RUN_INFO) == 0:
         calc_run_info(out_path)
     if len(INDELS) == 0:
@@ -187,13 +190,14 @@ def main():
     parser.add_argument('--min_base_qual', type=int, default=DEFAULT_MIN_BASE_QUAL, help="Minimum Base Quality")
     parser.add_argument('--min_coverage', type=int, default=DEFAULT_MIN_COVERAGE, help="Minimum Coverage")
     parser.add_argument('--include_base_freqs', action='store_true', help="Include Base Frequencies")
+    parser.add_argument('--quiet', action='store_true', help="Suppress Log Messages")
     args = parser.parse_args()
     args.mvc_output = Path(args.mvc_output)
     if not args.mvc_output.is_dir():
         raise ValueError(f"Directory not found: {args.mvc_output}")
-    print_log(f"MultiVirusConsensus output folder: {args.mvc_output}")
+    print_log(f"MultiVirusConsensus output folder: {args.mvc_output}", quiet=args.quiet)
     args.output = args.output.strip()
-    print_log(f"Summary TSV output: {args.output}")
+    print_log(f"Summary TSV output: {args.output}", quiet=args.quiet)
     if args.output.lower() == 'stdout':
         args.output = stdout
     else:
@@ -227,14 +231,14 @@ def main():
         raise ValueError(f"Header has duplicates: {header}")
 
     # calculate summary info
-    print_log("Loading reference genome IDs...")
+    print_log("Loading reference genome IDs...", quiet=args.quiet)
     refs = [p.name.replace('.consensus.fas','') for p in args.mvc_output.glob('*.consensus.fas')]
-    print_log("Setting up output TSV writer...")
+    print_log("Setting up output TSV writer...", quiet=args.quiet)
     tsv = writer(args.output, delimiter='\t')
     tsv.writerow(header)
-    print_log("Writing summary TSV output...")
+    print_log("Writing summary TSV output...", quiet=args.quiet)
     for ref in refs:
-        tsv.writerow([get_value(args.mvc_output, ref, col, min_base_qual=args.min_base_qual, min_coverage=args.min_coverage) for col in header])
+        tsv.writerow([get_value(args.mvc_output, ref, col, min_base_qual=args.min_base_qual, min_coverage=args.min_coverage, quiet=args.quiet) for col in header])
     args.output.close()
 
 # run tool
