@@ -75,11 +75,20 @@ def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL, quiet=False):
 
     # calculate final stats
     BAM_STATS['reads_total'] = BAM_STATS['reads_unmapped'] + sum(BAM_STATS['reads_mapped'].values())
-    BAM_STATS['reads_mapped_prop'] = {k : v/BAM_STATS['reads_total'] for k, v in BAM_STATS['reads_mapped'].items()}
-    BAM_STATS[f'bases_q{min_base_qual}_prop'] = BAM_STATS[f'bases_q{min_base_qual}'] / BAM_STATS['bases_total']
-    BAM_STATS['reads_gc_content'] = (BAM_STATS['base_c'] + BAM_STATS['base_g']) / BAM_STATS['bases_total']
-    for b in 'acgt':
-        BAM_STATS[f'base_{b}_prop'] = BAM_STATS[f'base_{b}'] / BAM_STATS['bases_total']
+    if BAM_STATS['reads_total'] == 0:
+        BAM_STATS['reads_mapped_prop'] = {k:0 for k in BAM_STATS['reads_mapped']}
+    else:
+        BAM_STATS['reads_mapped_prop'] = {k : v/BAM_STATS['reads_total'] for k, v in BAM_STATS['reads_mapped'].items()}
+    if BAM_STATS['bases_total'] == 0:
+        BAM_STATS[f'bases_q{min_base_qual}_prop'] = 0
+        BAM_STATS['reads_gc_content'] = 0
+        for b in 'acgt':
+            BAM_STATS[f'base_{b}_prop'] = 0
+    else:
+        BAM_STATS[f'bases_q{min_base_qual}_prop'] = BAM_STATS[f'bases_q{min_base_qual}'] / BAM_STATS['bases_total']
+        BAM_STATS['reads_gc_content'] = (BAM_STATS['base_c'] + BAM_STATS['base_g']) / BAM_STATS['bases_total']
+        for b in 'acgt':
+            BAM_STATS[f'base_{b}_prop'] = BAM_STATS[f'base_{b}'] / BAM_STATS['bases_total']
 
 # parse references FASTA
 def parse_refs(refs_path, quiet=False):
@@ -129,6 +138,9 @@ def calc_pos_cov_metrics(out_path, min_coverage=DEFAULT_MIN_COVERAGE, quiet=Fals
         ref = path.name.replace('.inscounts.json','').strip()
         with open(path, 'rt') as f:
             inscounts = jload(f)
+        for count_dict in inscounts.values():
+            if '' not in count_dict:
+                count_dict[''] = 0
         INDELS[f'insertions>={min_coverage}'][ref] = sum(1 for count_dict in inscounts.values() if count_dict[''] != max(count_dict.values()) and max(count_dict.values()) >= min_coverage)
 
     # calculate final metrics
