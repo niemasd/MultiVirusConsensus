@@ -1,6 +1,10 @@
 #! /usr/bin/env python3
 '''
 Calculate a summary TSV from a MultiVirusConsensus output
+
+To run on multiple samples `SAMPLE.summary.tsv` and prepend a "sample" column:
+
+(head -1 "$(ls *.summary.tsv | head -1)" | sed 's/^/sample\t/' && for f in *.summary.tsv ; do cat "$f" | grep -v 'reference' | sed "s/^/$(echo $f | cut -d'.' -f1)\t/" ; done ) > summary.tsv
 '''
 
 # imports
@@ -56,6 +60,13 @@ def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL, quiet=False):
     print_log(f"Calculating BAM statistics from: {bam_path}", quiet=quiet)
     with AlignmentFile(bam_path, 'rb') as bam:
         for aln in tqdm(bam, disable=quiet):
+            # handle base counts
+            if aln.is_unmapped or not (aln.is_secondary or aln.is_supplementary):
+                BAM_STATS[f'bases_q{min_base_qual}'] += sum(1 for score in aln.query_qualities if score >= min_base_qual)
+                BAM_STATS['bases_total'] += len(aln.query_sequence)
+                for b in aln.query_sequence.lower():
+                    BAM_STATS[f'base_{b}'] += 1
+
             # handle unmapped reads
             if aln.is_unmapped:
                 BAM_STATS['reads_unmapped'] += 1
@@ -66,12 +77,6 @@ def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL, quiet=False):
                 if aln.reference_name not in BAM_STATS['reads_mapped']:
                     BAM_STATS['reads_mapped'][aln.reference_name] = 0
                 BAM_STATS['reads_mapped'][aln.reference_name] += 1
-
-                # handle base counts
-                BAM_STATS[f'bases_q{min_base_qual}'] += sum(1 for score in aln.query_qualities if score >= min_base_qual)
-                BAM_STATS['bases_total'] += len(aln.query_sequence)
-                for b in aln.query_sequence.lower():
-                    BAM_STATS[f'base_{b}'] += 1
 
     # calculate final stats
     BAM_STATS['reads_total'] = BAM_STATS['reads_unmapped'] + sum(BAM_STATS['reads_mapped'].values())
@@ -202,6 +207,7 @@ def main():
     parser.add_argument('--min_base_qual', type=int, default=DEFAULT_MIN_BASE_QUAL, help="Minimum Base Quality")
     parser.add_argument('--min_coverage', type=int, default=DEFAULT_MIN_COVERAGE, help="Minimum Coverage")
     parser.add_argument('--include_base_freqs', action='store_true', help="Include Base Frequencies")
+    parser.add_argument('--sort_completeness', action='store_true', help="Sort by Completeness (rather than by Reference ID)")
     parser.add_argument('--quiet', action='store_true', help="Suppress Log Messages")
     args = parser.parse_args()
     args.mvc_output = Path(args.mvc_output)
@@ -245,12 +251,21 @@ def main():
     # calculate summary info
     print_log("Loading reference genome IDs...", quiet=args.quiet)
     refs = [p.name.replace('.consensus.fas','') for p in args.mvc_output.glob('*.consensus.fas')]
+    print_log("Calculating summary output table...", quiet=args.quiet)
+    out = list()
+    for ref in refs:
+        out.append([get_value(args.mvc_output, ref, col, min_base_qual=args.min_base_qual, min_coverage=args.min_coverage, quiet=args.quiet) for col in header])
+    if args.sort_completeness:
+        print_log(f"Sorting by column: positions_cov>={args.min_coverage}_prop", quiet=args.quiet)
+        out.sort(key=lambda row: row[header.index(f'positions_cov>={args.min_coverage}_prop')], reverse=True)
+
+    # write TSV output
     print_log("Setting up output TSV writer...", quiet=args.quiet)
     tsv = writer(args.output, delimiter='\t')
     tsv.writerow(header)
     print_log("Writing summary TSV output...", quiet=args.quiet)
-    for ref in refs:
-        tsv.writerow([get_value(args.mvc_output, ref, col, min_base_qual=args.min_base_qual, min_coverage=args.min_coverage, quiet=args.quiet) for col in header])
+    for row in out:
+        tsv.writerow(row)
     args.output.close()
 
 # run tool
