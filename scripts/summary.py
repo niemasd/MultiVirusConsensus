@@ -16,7 +16,7 @@ from multiprocessing import Pool
 from pathlib import Path
 from pysam import AlignmentFile
 from sequence_align.pairwise import needleman_wunsch
-from statistics import mean, median
+from statistics import mean, median, quantiles
 from sys import argv, stderr, stdout
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
@@ -55,6 +55,8 @@ def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL, quiet=False):
     BAM_STATS[f'bases_q{min_base_qual}'] = 0
     for b in 'acgt':
         BAM_STATS[f'base_{b}'] = 0
+    R1_START_END = dict()
+    R2_START_END = dict()
 
     # calculate stats from BAM
     print_log(f"Calculating BAM statistics from: {bam_path}", quiet=quiet)
@@ -78,6 +80,20 @@ def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL, quiet=False):
                     BAM_STATS['reads_mapped'][aln.reference_name] = 0
                 BAM_STATS['reads_mapped'][aln.reference_name] += 1
 
+                # keep track of details needed for insert size calculation
+                if aln.is_read1:
+                    R1_START_END[aln.query_name] = (aln.reference_start, aln.reference_end)
+                elif aln.is_read2:
+                    R2_START_END[aln.query_name] = (aln.reference_start, aln.reference_end)
+
+    # calculate insert sizes
+    insert_sizes = list()
+    for k in R1_START_END:
+        if k in R2_START_END:
+            r1_start, r1_end = R1_START_END[k]
+            r2_start, r2_end = R2_START_END[k]
+            insert_sizes.append(max(r1_end, r2_end) - min(r1_start, r2_start))
+
     # calculate final stats
     BAM_STATS['reads_total'] = BAM_STATS['reads_unmapped'] + sum(BAM_STATS['reads_mapped'].values())
     if BAM_STATS['reads_total'] == 0:
@@ -94,6 +110,12 @@ def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL, quiet=False):
         BAM_STATS['reads_gc_content'] = (BAM_STATS['base_c'] + BAM_STATS['base_g']) / BAM_STATS['bases_total']
         for b in 'acgt':
             BAM_STATS[f'base_{b}_prop'] = BAM_STATS[f'base_{b}'] / BAM_STATS['bases_total']
+    if len(insert_sizes) == 0:
+        BAM_STATS['insert_25th'], BAM_STATS['insert_median'], BAM_STATS['insert_75th'] = 0, 0, 0
+    elif len(insert_sizes) == 1:
+        BAM_STATS['insert_25th'], BAM_STATS['insert_median'], BAM_STATS['insert_75th'] = insert_sizes[0], insert_sizes[0], insert_sizes[0]
+    else:
+        BAM_STATS['insert_25th'], BAM_STATS['insert_median'], BAM_STATS['insert_75th'] = quantiles(insert_sizes, n=4)
 
 # parse references FASTA
 def parse_refs(refs_path, quiet=False):
@@ -241,6 +263,9 @@ def main():
         'positions_cov_median',
         f'insertions>={args.min_coverage}',
         f'deletions>={args.min_coverage}',
+        'insert_25th',
+        'insert_median',
+        'insert_75th',
     ]
     if args.include_base_freqs:
         header += ['base_a', 'base_c', 'base_g', 'base_t', 'base_a_prop', 'base_c_prop', 'base_g_prop', 'base_t_prop']
