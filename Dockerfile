@@ -4,7 +4,7 @@ MAINTAINER Niema Moshiri <niemamoshiri@gmail.com>
 
 # install MultiVirusConsensus and dependencies
 RUN apk update && \
-    apk add autoconf automake bash bzip2-dev curl-dev g++ gcc make musl-dev xz-dev zlib-dev && \
+    apk add autoconf automake bash bzip2-dev curl-dev g++ gcc make musl-dev python3 xz-dev zlib-dev && \
 
     # install htslib (needed for ViralConsensus)
     wget -qO- "https://github.com/samtools/htslib/releases/download/1.23.1/htslib-1.23.1.tar.bz2" | tar -xj && \
