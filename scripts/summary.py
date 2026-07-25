@@ -55,8 +55,11 @@ def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL, quiet=False):
     BAM_STATS[f'bases_q{min_base_qual}'] = 0
     for b in 'acgt':
         BAM_STATS[f'base_{b}'] = 0
-    R1_START_END = dict()
-    R2_START_END = dict()
+    R1_START_END = dict() # R1_START_END[ref][read] = (start, end)
+    R2_START_END = dict() # R2_START_END[ref][read] = (start, end)
+    BAM_STATS['insert_25th'] = dict()
+    BAM_STATS['insert_median'] = dict()
+    BAM_STATS['insert_75th'] = dict()
 
     # calculate stats from BAM
     print_log(f"Calculating BAM statistics from: {bam_path}", quiet=quiet)
@@ -80,19 +83,14 @@ def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL, quiet=False):
                     BAM_STATS['reads_mapped'][aln.reference_name] = 0
                 BAM_STATS['reads_mapped'][aln.reference_name] += 1
 
-                # keep track of details needed for insert size calculation
+                # keep track of details needed for insert size calculationa
+                if aln.reference_name not in R1_START_END:
+                    R1_START_END[aln.reference_name] = dict()
+                    R2_START_END[aln.reference_name] = dict()
                 if aln.is_read1:
-                    R1_START_END[aln.query_name] = (aln.reference_start, aln.reference_end)
+                    R1_START_END[aln.reference_name][aln.query_name] = (aln.reference_start, aln.reference_end)
                 elif aln.is_read2:
-                    R2_START_END[aln.query_name] = (aln.reference_start, aln.reference_end)
-
-    # calculate insert sizes
-    insert_sizes = list()
-    for k in R1_START_END:
-        if k in R2_START_END:
-            r1_start, r1_end = R1_START_END[k]
-            r2_start, r2_end = R2_START_END[k]
-            insert_sizes.append(max(r1_end, r2_end) - min(r1_start, r2_start))
+                    R2_START_END[aln.reference_name][aln.query_name] = (aln.reference_start, aln.reference_end)
 
     # calculate final stats
     BAM_STATS['reads_total'] = BAM_STATS['reads_unmapped'] + sum(BAM_STATS['reads_mapped'].values())
@@ -110,12 +108,19 @@ def calc_bam_stats(bam_path, min_base_qual=DEFAULT_MIN_BASE_QUAL, quiet=False):
         BAM_STATS['reads_gc_content'] = (BAM_STATS['base_c'] + BAM_STATS['base_g']) / BAM_STATS['bases_total']
         for b in 'acgt':
             BAM_STATS[f'base_{b}_prop'] = BAM_STATS[f'base_{b}'] / BAM_STATS['bases_total']
-    if len(insert_sizes) == 0:
-        BAM_STATS['insert_25th'], BAM_STATS['insert_median'], BAM_STATS['insert_75th'] = 0, 0, 0
-    elif len(insert_sizes) == 1:
-        BAM_STATS['insert_25th'], BAM_STATS['insert_median'], BAM_STATS['insert_75th'] = insert_sizes[0], insert_sizes[0], insert_sizes[0]
-    else:
-        BAM_STATS['insert_25th'], BAM_STATS['insert_median'], BAM_STATS['insert_75th'] = quantiles(insert_sizes, n=4)
+    for ref in R1_START_END:
+        insert_sizes = list()
+        for k in R1_START_END[ref]:
+            if k in R2_START_END[ref]:
+                r1_start, r1_end = R1_START_END[ref][k]
+                r2_start, r2_end = R2_START_END[ref][k]
+                insert_sizes.append(max(r1_end, r2_end) - min(r1_start, r2_start))
+        if len(insert_sizes) == 0:
+            BAM_STATS['insert_25th'][ref], BAM_STATS['insert_median'][ref], BAM_STATS['insert_75th'][ref] = 0, 0, 0
+        elif len(insert_sizes) == 1:
+            BAM_STATS['insert_25th'][ref], BAM_STATS['insert_median'][ref], BAM_STATS['insert_75th'][ref] = insert_sizes[0], insert_sizes[0], insert_sizes[0]
+        else:
+            BAM_STATS['insert_25th'][ref], BAM_STATS['insert_median'][ref], BAM_STATS['insert_75th'][ref] = quantiles(insert_sizes, n=4)
 
 # parse references FASTA
 def parse_refs(refs_path, quiet=False):
@@ -213,6 +218,11 @@ def get_value(out_path, ref, col, min_base_qual=DEFAULT_MIN_BASE_QUAL, min_cover
         return INDELS[col][ref]
     elif col.startswith('reads_mapped'):
         return BAM_STATS[col][ref]
+    elif col.startswith('insert_'):
+        if ref in BAM_STATS[col]:
+            return BAM_STATS[col][ref]
+        else:
+            return 0
     elif col in RUN_INFO:
         return RUN_INFO[col]
     elif col in BAM_STATS:
