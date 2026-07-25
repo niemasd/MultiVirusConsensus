@@ -65,6 +65,10 @@
     }
     button:hover{border-color: color-mix(in srgb, var(--border) 40%, var(--text));}
     button:disabled{opacity:0.55; cursor:not-allowed}
+    button.scale-toggle[aria-pressed="true"]{
+      border-color: color-mix(in srgb, var(--border) 35%, var(--text));
+      font-weight:650;
+    }
     .status{
       margin-top:10px;
       font-size:13px;
@@ -145,7 +149,8 @@
     <div class="row">
       <input id="folder" type="file" webkitdirectory multiple />
       <button id="reload" disabled>Reload</button>
-      <button id="toggleTheme">Light mode</button>
+      <button id="toggleTheme">Light Mode</button>
+      <button id="toggleScale" class="scale-toggle" aria-pressed="false" disabled>All Y-scales: Linear</button>
       <button id="downloadAll" disabled>Download All (ZIP)</button>
     </div>
     <div id="folderHeader" class="folder-title"></div>
@@ -165,6 +170,7 @@
   const elReload = document.getElementById("reload");
   const elDownloadAll = document.getElementById("downloadAll");
   const elToggleTheme = document.getElementById("toggleTheme");
+  const elToggleScale = document.getElementById("toggleScale");
   let lastFileList = null;
   let models = [];
 
@@ -271,6 +277,7 @@
   function clearPlots(){
     elPlots.innerHTML = "";
     models = [];
+    updateGlobalScaleButton();
   }
 
   // get a CSD variable property value
@@ -295,6 +302,72 @@
       if (w > max) max = w;
     }
     return max;
+  }
+
+  // Return a rounded upper bound for a zero-safe logarithmic count axis.
+  function niceLogMax(value){
+    const v = Math.max(1, Number(value) || 0);
+    const exponent = Math.floor(Math.log10(v));
+    const base = 10 ** exponent;
+    const fraction = v / base;
+    const niceFraction = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+    return niceFraction * base;
+  }
+
+  // Use raw count labels at logarithmically spaced positions, including zero.
+  function logTickValues(maxValue, maxTicks = 8){
+    const max = Math.max(1, Number(maxValue) || 1);
+    const ticks = [0, 1];
+    for (let power = 10; power <= max; power *= 10){
+      ticks.push(power);
+      if (!Number.isFinite(power * 10)) break;
+    }
+    if (ticks[ticks.length - 1] !== max) ticks.push(max);
+
+    const unique = Array.from(new Set(ticks)).sort((a,b) => a - b);
+    if (unique.length <= maxTicks) return unique;
+
+    // Keep zero, then select evenly across logarithmic decades.
+    const positive = unique.slice(1);
+    const slots = Math.max(1, maxTicks - 1);
+    if (slots === 1) return [0, positive[positive.length - 1]];
+    const selected = [];
+    for (let i=0; i<slots; i++){
+      const idx = Math.round(i * (positive.length - 1) / (slots - 1));
+      selected.push(positive[idx]);
+    }
+    return [0, ...Array.from(new Set(selected))].sort((a,b) => a - b);
+  }
+
+  // Keep a per-plot scale button synchronized with its model state.
+  function updatePlotScaleButton(model){
+    const isLog = model.yScale === "log";
+    model.scaleBtn.textContent = `Y-scale: ${isLog ? "Log" : "Linear"}`;
+    model.scaleBtn.setAttribute("aria-pressed", String(isLog));
+    model.scaleBtn.title = `Switch this plot to a ${isLog ? "linear" : "logarithmic"} Y-axis`;
+  }
+
+  // Reflect whether all plots are linear, all are logarithmic, or the set is mixed.
+  function updateGlobalScaleButton(){
+    const count = models.length;
+    elToggleScale.disabled = count === 0;
+
+    if (!count){
+      elToggleScale.textContent = "All Y-scales: Linear";
+      elToggleScale.setAttribute("aria-pressed", "false");
+      elToggleScale.title = "Load plots to change all Y-axis scales";
+      return;
+    }
+
+    const logCount = models.filter(m => m.yScale === "log").length;
+    const allLinear = logCount === 0;
+    const allLog = logCount === count;
+    const label = allLinear ? "Linear" : allLog ? "Log" : "Mixed";
+    elToggleScale.textContent = `All Y-scales: ${label}`;
+    elToggleScale.setAttribute("aria-pressed", allLog ? "true" : allLinear ? "false" : "mixed");
+    elToggleScale.title = allLog
+      ? "Switch every plot to a linear Y-axis"
+      : "Switch every plot to a logarithmic Y-axis";
   }
 
   // variable to store the selected folder's name
@@ -325,8 +398,11 @@
     left.appendChild(meta);
     const actions = document.createElement("div");
     actions.className = "plot-actions";
+    const scaleBtn = document.createElement("button");
+    scaleBtn.className = "scale-toggle";
     const dlBtn = document.createElement("button");
     dlBtn.textContent = "Download";
+    actions.appendChild(scaleBtn);
     actions.appendChild(dlBtn);
     header.appendChild(left);
     header.appendChild(actions);
@@ -345,8 +421,16 @@
     plot.appendChild(wrap);
     plot.appendChild(warn);
     elPlots.appendChild(plot);
-    const model = { X, refName, refLen, fracInfo, dense, svg, wrap, tooltip };
+    const model = { X, refName, refLen, fracInfo, dense, svg, wrap, tooltip, scaleBtn, yScale: "linear" };
     models.push(model);
+    updatePlotScaleButton(model);
+    updateGlobalScaleButton();
+    scaleBtn.addEventListener("click", () => {
+      model.yScale = model.yScale === "log" ? "linear" : "log";
+      updatePlotScaleButton(model);
+      updateGlobalScaleButton();
+      render(model);
+    });
     dlBtn.addEventListener("click", () => downloadSVG(model, `${model.X}.svg`));
     render(model);
     return model;
@@ -373,11 +457,12 @@
     const x = d3.scaleLinear()
       .domain([0, Math.max(0, refLen - 1)])
       .range([0, innerW]);
-    const yMax = Math.max(1, d3.max(dense, d => d.Total) || 1);
-    const y = d3.scaleLinear()
-      .domain([0, yMax])
-      .nice()
-      .range([innerH, 0]);
+    const rawYMax = Math.max(0, d3.max(dense, d => d.Total) || 0);
+    const isLog = model.yScale === "log";
+    const yDomainMax = isLog ? niceLogMax(rawYMax) : Math.max(1, rawYMax);
+    const y = isLog
+      ? d3.scaleSymlog().constant(1).domain([0, yDomainMax]).range([innerH, 0])
+      : d3.scaleLinear().domain([0, yDomainMax]).nice().range([innerH, 0]);
 
     // Tick formatting
     const xTickFmt = d3.format(",d"); // commas
@@ -385,12 +470,14 @@
     const xAxis = d3.axisBottom(x)
       .ticks(Math.min(10, Math.max(2, Math.floor(innerW / 120))))
       .tickFormat(xTickFmt);
+    const yTickCount = Math.min(8, Math.max(2, Math.floor(innerH / 50)));
+    const yTickVals = isLog ? logTickValues(yDomainMax, yTickCount) : y.ticks(yTickCount);
     const yAxis = d3.axisLeft(y)
-      .ticks(Math.min(8, Math.max(2, Math.floor(innerH / 50))))
+      .tickValues(yTickVals)
       .tickFormat(yTickFmt);
 
     // Compute y label x-position to avoid overlap with long tick labels
-    const yTickLabels = y.ticks(yAxis.ticks()[0] || 6).map(yTickFmt);
+    const yTickLabels = yTickVals.map(yTickFmt);
     const maxYTickW = measureMaxTickWidth(yTickLabels);
     // y-axis tick labels extend left of margin.left; place y-label further left than that by padding.
     const yLabelX = Math.max(10, margin.left - maxYTickW - 28);
@@ -418,7 +505,7 @@
       .attr("text-anchor", "middle")
       .attr("fill", cssVar("--axis"))
       .attr("font-size", 12)
-      .text("Count");
+      .text(isLog ? "Count (log scale)" : "Count");
 
     // Clip path so line doesn't bleed into margins
     const clipId = `clip_${String(model.X).replace(/[^a-zA-Z0-9_]/g, "_")}`;
@@ -681,6 +768,18 @@
   // event listener for clicking on the Download All button
   elDownloadAll.addEventListener("click", async () => {
     await downloadAllZIP();
+  });
+
+  // Toggle every plot together. From a mixed state, the first click makes all plots logarithmic.
+  elToggleScale.addEventListener("click", () => {
+    if (!models.length) return;
+    const target = models.every(m => m.yScale === "log") ? "linear" : "log";
+    for (const model of models){
+      model.yScale = target;
+      updatePlotScaleButton(model);
+      render(model);
+    }
+    updateGlobalScaleButton();
   });
 
   // responsive redraw
