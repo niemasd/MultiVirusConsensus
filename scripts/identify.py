@@ -6,20 +6,31 @@ Attempt to identify a list of reference sequences that likely appear in the samp
 # imports
 from pathlib import Path
 from statistics import mean, stdev
-from sys import argv
+import argparse
 
 # constants
-STD_THRESH = 3 # how many standard deviations above the mean to call a coverage 'significant'
+DEFAULT_STD_THRESH = 3
+DEFAULT_MIN_THRESH = 1
 
 # run tool
 if __name__ == "__main__":
-    if len(argv) != 2 or '-h' in argv or '--help' in argv or '-help' in argv:
-        print("USAGE: %s <MVC_output>" % argv[0]); exit(1)
-    out_path = Path(argv[1])
-    if not out_path.is_dir():
-        raise ValueError(f"Directory not found: {argv[1]}")
+    # parse user args
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('mvc_output', type=str, help="MVC Output Folder")
+    parser.add_argument('-s', '--std_thresh', type=float, required=False, default=DEFAULT_STD_THRESH, help="Number of Standard Deviations Above Mean to Call a Coverage 'Significant'")
+    parser.add_argument('-m', '--min_thresh', type=float, required=False, default=DEFAULT_MIN_THRESH, help="Minimum Possible 'Significant' Coverage Value")
+    args = parser.parse_args()
+    if args.std_thresh <= 0:
+        raise ValueError(f"'std_thresh' must be positive: {args.std_thresh}")
+    if args.min_thresh < 0:
+        raise ValueError(f"'min_thresh' must be non-negative: {args.min_thresh}")
+    args.mvc_output = Path(args.mvc_output)
+    if not args.mvc_output.is_dir():
+        raise ValueError(f"Directory not found: {args.mvc_output}")
+
+    # load data
     cov = dict() # cov[ref] = coverage of ref = total base count in ref / length of ref
-    for p in out_path.glob('*.poscounts.tsv'):
+    for p in args.mvc_output.glob('*.poscounts.tsv'):
         with open(p, mode='rt') as f:
             lines = [l.strip() for l in f.readlines()]
         total_count = sum(int(l.split('\t')[-1]) for i, l in enumerate(lines) if i != 0)
@@ -27,9 +38,11 @@ if __name__ == "__main__":
         if int(lines[1].split('\t')[0]) == 0:
             ref_len += 1
         cov[p.name.replace('.poscounts.tsv','')] = total_count / ref_len
+
+    # identify significant references
     cov_mean = mean(cov.values())
     cov_std = stdev(cov.values())
-    cov_thresh = cov_mean + (3 * cov_std)
+    cov_thresh = max(args.min_thresh, cov_mean + (args.std_thresh * cov_std))
     cov_sig = {k:v for k, v in cov.items() if v >= cov_thresh}
     cov_sig_total = sum(cov_sig.values())
     print('score\treference')
