@@ -58,9 +58,15 @@ For example, to change the minimum depth setting to 1 (`-d 1`), you could run th
 
 In general, please only include arguments related to consensus sequence calling: **do not include arguments related to input/output files!**
 
-# Visualizing Results
+# Interpreting Results
 
-You can visualize the results of a MultiVirusConsensus run using our [visualization web application](https://niema.net/MultiVirusConsensus/).
+## Visualizing Coverages
+
+You can interactively visualize the coverages of each reference sequence of a MultiVirusConsensus run using our [visualization web application](https://niema.net/MultiVirusConsensus/).
+
+## Helper Scripts
+
+We provide helper scripts for post-processing of MultiVirusConsensus results in the [`scripts`](scripts) directory in this repository. Notably, the [`summary.py`](scripts/summary.py) script calculates many summary statistics about the read mapping, base/indel counting, and consensus sequence calling processes and outputs them as a TSV: most importantly, it also attempts to predict which viruses likely actually exist in the sample (e.g. for multi-virus surveillance panels).
 
 # Citing MultiVirusConsensus (MVC)
 
