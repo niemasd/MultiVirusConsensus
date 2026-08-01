@@ -18,6 +18,10 @@ from sys import stderr
 from tqdm import tqdm
 import argparse
 
+# constants
+DEFAULT_FILTER_COVERAGE = 1
+DEFAULT_FILTER_COMPLETENESS = 0.1
+
 # get current time
 def get_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -31,7 +35,9 @@ def print_log(s='', end='\n', file=stderr, quiet=False):
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('mvc_output', type=str, help="MVC Output Folder")
-    parser.add_argument('-o', '--output', type=str, default='stdout', help="Summary TSV Output")
+    parser.add_argument('-o', '--output', type=str, required=False, default='stdout', help="Summary TSV Output")
+    parser.add_argument('--filter_coverage', type=float, required=False, default=DEFAULT_FILTER_COVERAGE, help="Filter: Minimum Fold-Coverage")
+    parser.add_argument('--filter_completeness', type=float, required=False, default=DEFAULT_FILTER_COMPLETENESS, help="Filter: Minimum Consensus Completeness")
     parser.add_argument('--quiet', action='store_true', help="Suppress Log Messages")
     args = parser.parse_args()
     args.mvc_output = Path(args.mvc_output)
@@ -202,11 +208,11 @@ def calc_coverage_stats(pos_counts, ins_counts, ref_seqs, min_coverage, quiet=Fa
         winner = allele_counts.idxmax(axis=1)
         allele_passes_coverage = max_allele_count.ge(min_coverage)
         reference_base = Series(list(ref_seqs[ref].upper()), index=df.index)
-        coverage_stats[ref][f'deletions>={min_coverage}'] = int((allele_passes_coverage & winner.eq("-")).sum())
+        coverage_stats[ref][f'deletions>={min_coverage}'] = int((allele_passes_coverage & winner.eq('-')).sum())
         coverage_stats[ref][f'substitutions>={min_coverage}'] = int((allele_passes_coverage & winner.isin(base_cols) & winner.ne(reference_base)).sum())
     print_log(f"Calculating coverage statistics from insertion counts...", quiet=quiet)
     for ref, count_dicts in tqdm(ins_counts.items(), disable=quiet):
-        coverage_stats[ref][f'insertions>={min_coverage}'] = sum(1 for count_dict in count_dicts.values() if count_dict[''] != max(count_dict.values()) and max(count_dict.values()) >= min_coverage)
+        coverage_stats[ref][f'insertions>={min_coverage}'] = sum(1 for count_dict in count_dicts.values() if (('' not in count_dict) or (count_dict[''] != max(count_dict.values()))) and (max(count_dict.values()) >= min_coverage))
     print_log(f"Calculating matches between consensus and reference sequences...", quiet=quiet)
     for ref, ref_seq in tqdm(ref_seqs.items(), disable=quiet):
         compare_length = coverage_stats[ref][f'positions_cov>={min_coverage}'] + coverage_stats[ref][f'insertions>={min_coverage}']
@@ -256,6 +262,9 @@ def main():
     for k in [f'positions_cov>={min_coverage}', f'positions_cov>={min_coverage}_prop', 'positions_cov_mean', 'positions_cov_median', f'substitutions>={min_coverage}', f'insertions>={min_coverage}', f'deletions>={min_coverage}', f'reference_matches>={min_coverage}', f'reference_matches>={min_coverage}_prop']:
         data[k] = [coverage_stats[ref][k] for ref in refs]
     df = DataFrame(data)
+    likely_exists_key = f'likely_exists(fold_coverage>={args.filter_coverage};completeness>={args.filter_completeness})'
+    df[likely_exists_key] = (df['positions_cov_mean'] >= args.filter_coverage) & (df[f'positions_cov>={min_coverage}_prop'] >= args.filter_completeness)
+    df = df.sort_values(by=[likely_exists_key, 'positions_cov_mean', f'positions_cov>={min_coverage}_prop'], ascending=[False, False, False]).reset_index(drop=True)
 
     # write dataframe to output as TSV
     if args.output == 'stdout':
