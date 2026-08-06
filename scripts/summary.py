@@ -63,13 +63,14 @@ def load_mvc_log(path, quiet=False):
 # load reference sequences
 def load_ref_seqs(path, suffix='.reference.fas', quiet=False):
     print_log(f"Loading reference sequences from: {path / ('*' + suffix)}", quiet=quiet)
-    ref_seqs = dict()
+    ref_names = dict() # keys = ref IDs, values = full ref names (FASTA names)
+    ref_seqs = dict() # keys = ref IDs, values = sequences
     for p in tqdm(list(path.glob(f'*{suffix}')), disable=quiet):
         ref = p.name.replace(suffix, '')
         with open(p, mode='rt') as f:
-            f.readline()
+            ref_names[ref] = f.readline()[1:].strip()
             ref_seqs[ref] = ''.join(l.strip() for l in f.readlines())
-    return ref_seqs
+    return ref_names, ref_seqs
 
 # parse ViralConsensus consensus sequence header line
 def parse_viral_consensus_header(header):
@@ -229,7 +230,7 @@ def main():
     # load user data
     args = parse_args()
     mvc_meta = load_mvc_log(args.mvc_output / 'MultiVirusConsensus.log', quiet=args.quiet)
-    ref_seqs = load_ref_seqs(args.mvc_output, quiet=args.quiet)
+    ref_names, ref_seqs = load_ref_seqs(args.mvc_output, quiet=args.quiet)
     refs = sorted(ref_seqs.keys())
     consensus_seqs, viral_consensus_meta = load_consensus_seqs(args.mvc_output, quiet=args.quiet)
     pos_counts = load_pos_counts(args.mvc_output, quiet=args.quiet)
@@ -252,7 +253,7 @@ def main():
     data = {
         'mvc_version': [mvc_meta['version']]*len(refs),
         'viral_consensus_version': [viral_consensus_meta['version']]*len(refs),
-        'reference': refs,
+        'reference': [ref_names[ref] for ref in refs],
         'reference_length': [len(ref_seqs[ref]) for ref in refs],
     }
     for k in ['reads_total', 'bases_total', f'bases_q{min_base_qual}', f'bases_q{min_base_qual}_prop', 'reads_gc_content']:
