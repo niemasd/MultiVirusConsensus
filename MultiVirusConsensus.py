@@ -18,7 +18,7 @@ import re
 import shlex
 
 # useful constants
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 QUIET = False
 LOGFILE = None
 KEEP_MULTIMAPPED_OPTIONS = ['all', 'best', 'none']
@@ -36,6 +36,7 @@ SAM_FLAG_MAPQ_RE = re.compile(br'^[^\t\r\n]+\t([0-9]+)\t[^\t\r\n]*\t[^\t\r\n]*\t
 SAM_HEADER_SN_RE = re.compile(br'(?:^|\t)SN:([^\t\r\n]+)')
 SAFE_FILENAME_RE = re.compile(r'[^A-Za-z0-9._-]+')
 COL_DELIM = '\t'
+MINIMAP2_MAX_SECONDARY = 2147483647
 
 # a reference sequence, keeping its complete FASTA header separately from the
 # first whitespace-delimited token used as the reference ID
@@ -327,11 +328,11 @@ class OverallRoutingStats:
         self.unrecognized_or_nonconsensus_alignment_lines += stats.unrecognized_or_nonconsensus_alignment_lines
 
 # build Minimap2 command
-def build_minimap2_command(args, refs_path, num_refs, fastq_paths):
+def build_minimap2_command(args, refs_path, fastq_paths):
     cmd = [str(args.minimap2_path), '-a', '-t', str(args.threads)]
     cmd.extend(shell_words(args.minimap2_args))
     if args.keep_multimapped == 'all':
-        cmd.extend(['--secondary=yes', '-N', str(num_refs)])
+        cmd.extend(['--secondary=yes', '-N', str(MINIMAP2_MAX_SECONDARY)])
     elif args.keep_multimapped == 'best':
         cmd.append('--secondary=no')
     cmd.append(str(refs_path))
@@ -671,7 +672,7 @@ def stream_minimap2_input(args, refs_path, refs, samtools_proc, jobs, processes,
         minimap2_log_path.write_text('No FASTQ inputs were provided; minimap2 was not run.\n')
         print_log('No FASTQ inputs detected; skipping minimap2')
         return overall
-    minimap2_cmd = build_minimap2_command(args, refs_path, len(refs), args.fastq_inputs)
+    minimap2_cmd = build_minimap2_command(args, refs_path, args.fastq_inputs)
     print_log(f"Starting minimap2: {' '.join(shlex.quote(x) for x in minimap2_cmd)}")
     minimap2_proc = start_process_with_log(minimap2_cmd, minimap2_log_path, stdin=None, stdout=PIPE, bufsize=DEFAULT_BUFSIZE)
     processes.append(('minimap2', minimap2_proc))
