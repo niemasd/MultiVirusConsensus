@@ -54,17 +54,25 @@
       padding:10px;
       border-radius:10px;
     }
-    button{
+    button, select{
       background:var(--panel);
       color:var(--text);
       border:1px solid var(--border);
       padding:10px 12px;
       border-radius:10px;
-      cursor:pointer;
+    }
+    button{cursor:pointer; white-space:nowrap;}
+    select{cursor:pointer;}
+    button:hover, select:hover{border-color: color-mix(in srgb, var(--border) 40%, var(--text));}
+    button:disabled, select:disabled{opacity:0.55; cursor:not-allowed}
+    .sort-control{
+      display:flex;
+      align-items:center;
+      gap:7px;
+      color:var(--muted);
+      font-size:13px;
       white-space:nowrap;
     }
-    button:hover{border-color: color-mix(in srgb, var(--border) 40%, var(--text));}
-    button:disabled{opacity:0.55; cursor:not-allowed}
     button.scale-toggle[aria-pressed="true"]{
       border-color: color-mix(in srgb, var(--border) 35%, var(--text));
       font-weight:650;
@@ -151,6 +159,13 @@
       <button id="reload" disabled>Reload</button>
       <button id="toggleTheme">Light Mode</button>
       <button id="toggleScale" class="scale-toggle" aria-pressed="false" disabled>All Y-scales: Linear</button>
+      <label class="sort-control" for="sortBy">
+        <span>Sort by:</span>
+        <select id="sortBy" aria-label="Sort plots by">
+          <option value="foldCoverage">Fold-Coverage (mean coverage)</option>
+          <option value="completeness">Completeness (consensus non-N %)</option>
+        </select>
+      </label>
       <button id="downloadAll" disabled>Download All (ZIP)</button>
     </div>
     <div id="folderHeader" class="folder-title"></div>
@@ -171,8 +186,12 @@
   const elDownloadAll = document.getElementById("downloadAll");
   const elToggleTheme = document.getElementById("toggleTheme");
   const elToggleScale = document.getElementById("toggleScale");
+  const elSortBy = document.getElementById("sortBy");
   let lastFileList = null;
   let models = [];
+  const savedSortMode = localStorage.getItem("pcv_sort_mode");
+  let sortMode = savedSortMode === "completeness" ? "completeness" : "foldCoverage";
+  elSortBy.value = sortMode;
 
   // toggle light/dark mode
   function applyTheme(mode){
@@ -259,6 +278,33 @@
       });
     }
     return out;
+  }
+
+  // calculate mean fold-coverage across rows in a parsed position counts file
+  function calculateFoldCoverage(tsvRows){
+    if (!tsvRows.length) return 0;
+    const totalCoverage = tsvRows.reduce((sum, row) => sum + row.Total, 0);
+    return totalCoverage / tsvRows.length;
+  }
+
+  // Compare genomes using the selected primary metric, with deterministic tie-breakers.
+  function compareGenomes(a, b){
+    if (sortMode === "completeness"){
+      return (b.fracInfo.frac - a.fracInfo.frac) ||
+        (b.fracInfo.nonN - a.fracInfo.nonN) ||
+        (b.foldCoverage - a.foldCoverage) ||
+        a.X.localeCompare(b.X);
+    }
+    return (b.foldCoverage - a.foldCoverage) ||
+      (b.fracInfo.frac - a.fracInfo.frac) ||
+      (b.fracInfo.nonN - a.fracInfo.nonN) ||
+      a.X.localeCompare(b.X);
+  }
+
+  // Reorder existing plot elements without rebuilding them or resetting their Y-scales.
+  function sortModelsAndPlots(){
+    models.sort(compareGenomes);
+    for (const model of models) elPlots.appendChild(model.plot);
   }
 
   // build dense rows from parsed TSV contents
@@ -381,7 +427,7 @@
   }
 
   // make a plot
-  function makePlot({X, refName, refLen, fracInfo, dense}){
+  function makePlot({X, refName, refLen, fracInfo, foldCoverage, dense}){
     const plot = document.createElement("div");
     plot.className = "plot";
     const header = document.createElement("div");
@@ -391,11 +437,19 @@
     const title = document.createElement("div");
     title.className = "plot-title";
     title.textContent = refName || X;
-    const meta = document.createElement("div");
-    meta.className = "plot-meta";
-    meta.textContent = `Consensus non-N: ${fracInfo.nonN}/${fracInfo.len} (${(fracInfo.frac*100).toFixed(2)}%) • Reference length: ${refLen}`;
+    const referenceLengthMeta = document.createElement("div");
+    referenceLengthMeta.className = "plot-meta";
+    referenceLengthMeta.textContent = `Reference length: ${refLen}`;
+    const coverageMeta = document.createElement("div");
+    coverageMeta.className = "plot-meta";
+    coverageMeta.textContent = `Fold-Coverage (mean coverage): ${foldCoverage.toFixed(2)}`;
+    const completenessMeta = document.createElement("div");
+    completenessMeta.className = "plot-meta";
+    completenessMeta.textContent = `Completeness (consensus non-N %): ${fracInfo.nonN}/${fracInfo.len} (${(fracInfo.frac*100).toFixed(2)}%)`;
     left.appendChild(title);
-    left.appendChild(meta);
+    left.appendChild(referenceLengthMeta);
+    left.appendChild(coverageMeta);
+    left.appendChild(completenessMeta);
     const actions = document.createElement("div");
     actions.className = "plot-actions";
     const scaleBtn = document.createElement("button");
@@ -421,7 +475,7 @@
     plot.appendChild(wrap);
     plot.appendChild(warn);
     elPlots.appendChild(plot);
-    const model = { X, refName, refLen, fracInfo, dense, svg, wrap, tooltip, scaleBtn, yScale: "linear" };
+    const model = { X, refName, refLen, fracInfo, foldCoverage, dense, plot, svg, wrap, tooltip, scaleBtn, yScale: "linear" };
     models.push(model);
     updatePlotScaleButton(model);
     updateGlobalScaleButton();
@@ -724,10 +778,11 @@
       const refLen = ref.seq.length;
       const fracInfo = nonNFraction(con.seq);
       const tsvRows = parseTSVPoscounts(tsvText);
+      const foldCoverage = calculateFoldCoverage(tsvRows);
       const dense = buildDenseRows(refLen, tsvRows);
-      genomes.push({X, refName, refLen, fracInfo, dense});
+      genomes.push({X, refName, refLen, fracInfo, foldCoverage, dense});
     }
-    genomes.sort((a,b) => (b.fracInfo.frac - a.fracInfo.frac) || (b.fracInfo.nonN - a.fracInfo.nonN) || (a.X.localeCompare(b.X)));
+    genomes.sort(compareGenomes);
 
     // update status with info about loaded genomes
     const lines = [];
@@ -768,6 +823,13 @@
   // event listener for clicking on the Download All button
   elDownloadAll.addEventListener("click", async () => {
     await downloadAllZIP();
+  });
+
+  // Re-sort loaded plots immediately when the selected metric changes.
+  elSortBy.addEventListener("change", () => {
+    sortMode = elSortBy.value === "completeness" ? "completeness" : "foldCoverage";
+    localStorage.setItem("pcv_sort_mode", sortMode);
+    sortModelsAndPlots();
   });
 
   // Toggle every plot together. From a mixed state, the first click makes all plots logarithmic.
