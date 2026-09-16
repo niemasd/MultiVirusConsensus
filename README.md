@@ -72,4 +72,4 @@ We provide helper scripts for post-processing of MultiVirusConsensus results in 
 
 If you use MVC in your work, please cite:
 
-> Moshiri N (2026). "MultiVirusConsensus: An accurate and efficient open-source pipeline for identification and consensus sequence generation of multiple viruses from mixed samples." *medRxiv*. [doi:10.64898/2026.03.24.26349218](https://doi.org/10.64898/2026.03.24.26349218)
+> Moshiri N (2026). "MultiVirusConsensus: An accurate and efficient open-source pipeline for identification and consensus sequence generation of multiple viruses from mixed samples." *Bioinformatics Advances*. vbag256. [doi:10.1093/bioadv/vbag256](https://doi.org/10.1093/bioadv/vbag256)
