@@ -5,8 +5,10 @@ Calculate all pairwise distances of all consensus sequences of the same virus fr
 
 # imports
 from datetime import datetime
+from os import cpu_count
 from pathlib import Path
 from subprocess import run
+from tqdm.contrib.concurrent import process_map
 from tqdm import tqdm
 import argparse
 
@@ -17,7 +19,6 @@ DEFAULT_MIN_COMPLETENESS = 0.1
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('mvc_output', nargs='+', type=str, help="MVC Output Folders")
-    parser.add_argument('-e', '--email', type=str, required=True, help="Email (for NCBI)")
     parser.add_argument('-o', '--output', type=str, required=True, help="Pairwise Distance Output Folder")
     parser.add_argument('--min_completeness', type=float, required=False, default=DEFAULT_MIN_COMPLETENESS, help="Minimum Completeness to Include Sequence")
     parser.add_argument('--viralmsa_path', type=str, required=False, default='ViralMSA.py', help="Path to 'ViralMSA.py' Executable")
@@ -38,7 +39,7 @@ def parse_args():
 
 # load consensus sequences: seqs[ref_ID][sample] = consensus sequence
 def load_consensus_seqs(mvc_output_paths, min_completeness=DEFAULT_MIN_COMPLETENESS):
-    seqs = {ref_ID:dict() for ref_ID in tqdm((p.name.replace('.consensus.fas','') for mvc_output_p in mvc_output_paths for p in mvc_output_p.glob('*.consensus.fas')), desc="Loading Reference IDs")}
+    seqs = {ref_ID:dict() for ref_ID in tqdm((p.name.replace('.consensus.fas','').strip() for mvc_output_p in mvc_output_paths for p in mvc_output_p.glob('*.consensus.fas')), desc="Loading Reference IDs")}
     for ref_ID, seq_dict in tqdm(seqs.items(), desc="Loading Consensus Sequences"):
         for mvc_output_p in mvc_output_paths:
             with open(mvc_output_p / f'{ref_ID}.consensus.fas', mode='rt') as f:
@@ -47,9 +48,19 @@ def load_consensus_seqs(mvc_output_paths, min_completeness=DEFAULT_MIN_COMPLETEN
                 if completeness >= min_completeness:
                     seq_dict[mvc_output_p.name.strip()] = s
     for ref_ID, seq_dict in tqdm(list(seqs.items()), desc="Pruning Empty References"):
-        if len(seq_dict) == 0:
+        if len(seq_dict) < 2:
             del seqs[ref_ID]
     return seqs
+
+# load reference sequences: refs[ref_ID] = sequence
+def load_reference_seqs(mvc_output_paths):
+    refs = dict()
+    for ref_path in tqdm((p for mvc_output_p in mvc_output_paths for p in mvc_output_p.glob('*.reference.fas')), desc="Loading Reference Sequences"):
+        ref_ID = ref_path.name.replace('.reference.fas','').strip()
+        if ref_ID not in refs:
+            with open(ref_path, mode='rt') as f:
+                refs[ref_ID] = ''.join(l.strip() for l in f.read().splitlines()[1:])
+    return refs
 
 # perform MSA using MAFFT
 def run_mafft(seqs, out_dir, mafft_path='mafft'):
@@ -60,22 +71,29 @@ def run_mafft(seqs, out_dir, mafft_path='mafft'):
                 run([mafft_path, '--auto', '-'], input=fasta_str, text=True, stdout=aln_f, stderr=log_f, check=True)
 
 # perform MSA using ViralMSA
-def run_viralmsa(seqs, email, out_dir, viralmsa_path='ViralMSA.py'):
-    for ref_ID, seq_dict in tqdm(seqs.items(), desc=f"Running: {viralmsa_path}"):
+def run_viralmsa_single(params):
+    ref_ID, seq_dict, out_dir, viralmsa_path = params
+    if len(seq_dict) > 1:
         consensus_path = out_dir / f'{ref_ID}.consensus.fas'
         with open(consensus_path, mode='wt') as fas_f:
             for k, v in sorted(seq_dict.items()):
                 fas_f.write(f">{k}\n{v}\n")
-        run([viralmsa_path, '-q', '--omit_ref', '-e', email, '-r', ref_ID, '-s', consensus_path, '-o', out_dir / f'{ref_ID}.viralmsa.out'], check=True)
+        run([viralmsa_path, '-q', '--omit_ref', '-r', out_dir / f'{ref_ID}.reference.fas', '-s', consensus_path, '-o', out_dir / f'{ref_ID}.viralmsa.out'], check=True)
+def run_viralmsa(seqs, refs, out_dir, viralmsa_path='ViralMSA.py'):
+    for ref_ID in sorted(seqs.keys()):
+        with open(out_dir / f'{ref_ID}.reference.fas', mode='wt') as f:
+            f.write(f">{ref_ID}\n{refs[ref_ID]}\n")
+    results = process_map(run_viralmsa_single, ((ref_ID, seq_dict, out_dir, viralmsa_path) for ref_ID, seq_dict in seqs.items()), max_workers=cpu_count(), desc=f"Running: {viralmsa_path}")
 
 # compute pairwise distances using tn93
-def run_tn93(out_dir, tn93_path='tn93'):
+def run_tn93(seqs, out_dir, tn93_path='tn93'):
     for viralmsa_out_path in tqdm(sorted(out_dir.glob('*.viralmsa.out')), desc=f"Running: {tn93_path}"):
         ref_ID = viralmsa_out_path.name.replace('.viralmsa.out','')
-        aln_path = next(viralmsa_out_path.glob('*.aln'))
-        with open(out_dir / f'{ref_ID}.tn93.tsv', mode='wt') as tsv_f:
-            with open(out_dir / f'{ref_ID}.tn93.log', mode='wt') as log_f:
-                run([tn93_path, '-t', '1', '-l', '1', '-a', 'skip', '-D', '\t', aln_path], text=True, stdout=tsv_f, stderr=log_f, check=True)
+        if len(seqs[ref_ID]) > 1:
+            aln_path = next(viralmsa_out_path.glob('*.aln'))
+            with open(out_dir / f'{ref_ID}.tn93.tsv', mode='wt') as tsv_f:
+                with open(out_dir / f'{ref_ID}.tn93.log', mode='wt') as log_f:
+                    run([tn93_path, '-t', '1', '-l', '1', '-a', 'skip', '-D', '\t', aln_path], text=True, stdout=tsv_f, stderr=log_f, check=True)
 
 # load pairwise distances: dists[ref_ID][u][v] = pairwise distance
 def load_dists(out_dir):
@@ -117,8 +135,9 @@ def main():
     args = parse_args()
     args.output.mkdir()
     seqs = load_consensus_seqs(args.mvc_output, min_completeness=args.min_completeness)
-    run_viralmsa(seqs, args.email, args.output, viralmsa_path=args.viralmsa_path)
-    run_tn93(args.output, tn93_path=args.tn93_path)
+    refs = load_reference_seqs(args.mvc_output)
+    run_viralmsa(seqs, refs, args.output, viralmsa_path=args.viralmsa_path)
+    run_tn93(seqs, args.output, tn93_path=args.tn93_path)
     dists = load_dists(args.output)
     write_distance_matrix(dists, args.output)
 
