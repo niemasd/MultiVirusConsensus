@@ -66,7 +66,7 @@ def run_viralmsa(seqs, email, out_dir, viralmsa_path='ViralMSA.py'):
         with open(consensus_path, mode='wt') as fas_f:
             for k, v in sorted(seq_dict.items()):
                 fas_f.write(f">{k}\n{v}\n")
-        run([viralmsa_path, '-q', '-e', email, '-r', ref_ID, '-s', consensus_path, '-o', out_dir / f'{ref_ID}.viralmsa.out'], check=True)
+        run([viralmsa_path, '-q', '--omit_ref', '-e', email, '-r', ref_ID, '-s', consensus_path, '-o', out_dir / f'{ref_ID}.viralmsa.out'], check=True)
 
 # compute pairwise distances using tn93
 def run_tn93(out_dir, tn93_path='tn93'):
@@ -101,7 +101,7 @@ def write_distance_matrix(dists, out_dir):
         with open(out_dir / f'{ref_ID}.distance_matrix.tsv', mode='wt') as f:
             f.write(f"\t{'\t'.join(sample_IDs)}\n")
             for i, u in enumerate(sample_IDs):
-                f.write(f"{ref_ID}\t")
+                f.write(f"{u}\t")
                 for j, v in enumerate(sample_IDs):
                     if i == j:
                         f.write('0')
