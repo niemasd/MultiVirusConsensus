@@ -6,7 +6,7 @@ RUN apk update && \
     apk add --no-cache autoconf automake bash bzip2-dev curl-dev g++ gcc make musl-dev python3 xz-dev zlib-dev && \
 
     # install htslib (needed for ViralConsensus)
-    wget -qO- "https://github.com/samtools/htslib/releases/download/1.24/htslib-1.24.tar.bz2" | tar -xj && \
+    wget -qO- "https://github.com/samtools/htslib/releases/download/1.25/htslib-1.25.tar.bz2" | tar -xj && \
     cd htslib-* && \
     ./configure && \
     make install && \
@@ -15,7 +15,7 @@ RUN apk update && \
     ldconfig && \
 
     # install samtools
-    wget -qO- "https://github.com/samtools/samtools/releases/download/1.24/samtools-1.24.tar.bz2" | tar -xj && \
+    wget -qO- "https://github.com/samtools/samtools/releases/download/1.25/samtools-1.25.tar.bz2" | tar -xj && \
     cd samtools-* && \
     ./configure --without-curses && \
     make install && \
@@ -31,10 +31,10 @@ RUN apk update && \
     rm -rf minimap2-* && \
 
     # install ViralConsensus
-    wget -qO- "https://github.com/niemasd/ViralConsensus/archive/refs/tags/1.0.4.tar.gz" | tar -zx && \
+    wget -qO- "https://github.com/niemasd/ViralConsensus/archive/refs/tags/1.0.5.tar.gz" | tar -zx && \
     cd ViralConsensus-* && \
     make && \
-    mv viral_consensus /usr/local/bin/ && \
+    mv scripts/build_vcf.py viral_consensus /usr/local/bin/ && \
     cd .. && \
     rm -rf ViralConsensus-* && \
 
